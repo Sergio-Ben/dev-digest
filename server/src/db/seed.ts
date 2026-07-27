@@ -7,6 +7,7 @@ import {
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { seedDemoPullsAndRuns } from './seed-demo.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -28,7 +29,14 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
 export const DEFAULT_WORKSPACE_NAME = 'default';
 export const SYSTEM_USER_EMAIL = 'you@local';
 
-export async function seed(db: Db): Promise<{ workspaceId: string; userId: string }> {
+export async function seed(
+  db: Db,
+): Promise<{
+  workspaceId: string;
+  userId: string;
+  pullsCreated: number;
+  runsCreated: number;
+}> {
   // ---- workspace + user (no-auth defaults) ----
   let [ws] = await db
     .select()
@@ -220,7 +228,11 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
-  return { workspaceId, userId };
+  // ---- demo PR fleet + PRICED runs (the COST column's data) ----
+  // Must run after the agents above: runs are attributed to them by name.
+  const demo = await seedDemoPullsAndRuns(db, { workspaceId, repoId });
+
+  return { workspaceId, userId, ...demo };
 }
 
 // CLI entrypoint

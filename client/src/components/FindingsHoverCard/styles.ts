@@ -1,0 +1,93 @@
+import type { CSSProperties } from "react";
+import { CARD_MAX_HEIGHT, CARD_WIDTH } from "./constants";
+
+export const s = {
+  /** Fixed + portalled to <body>: the containers these cards hang off are
+   *  `overflow: hidden` (rounded corners), which clips an in-flow popover. */
+  card: (pos: { left: number; top?: number; bottom?: number }): CSSProperties => ({
+    position: "fixed",
+    left: pos.left,
+    ...(pos.top != null ? { top: pos.top } : {}),
+    ...(pos.bottom != null ? { bottom: pos.bottom } : {}),
+    zIndex: 60,
+    width: CARD_WIDTH,
+    maxHeight: CARD_MAX_HEIGHT,
+    overflowY: "auto",
+    padding: "12px 14px",
+    borderRadius: 10,
+    border: "1px solid var(--border-strong)",
+    background: "var(--bg-elevated)",
+    boxShadow: "0 12px 32px rgba(0,0,0,.38)",
+    cursor: "default",
+  }),
+  head: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  } satisfies CSSProperties,
+  headLabel: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 7,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  filterBtn: (color: string, active: boolean): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "1px 6px",
+    borderRadius: 5,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    color,
+    background: active ? "var(--bg-hover)" : "transparent",
+    border: `1px solid ${active ? color : "transparent"}`,
+  }),
+  item: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    paddingTop: 10,
+    borderTop: "1px solid var(--border)",
+    marginTop: 10,
+  } satisfies CSSProperties,
+  itemFirst: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  } satisfies CSSProperties,
+  titleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  title: (color: string): CSSProperties => ({
+    fontSize: 13.5,
+    fontWeight: 600,
+    color,
+  }),
+  metaRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  rationale: {
+    fontSize: 12.5,
+    lineHeight: 1.5,
+    color: "var(--text-secondary)",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  } as CSSProperties,
+  note: { fontSize: 12.5, color: "var(--text-muted)" } satisfies CSSProperties,
+} as const;

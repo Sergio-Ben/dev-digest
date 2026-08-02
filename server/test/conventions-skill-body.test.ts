@@ -6,11 +6,13 @@ const base: ConventionCandidate = {
   id: '00000000-0000-0000-0000-000000000001',
   category: 'async-await-then-chains',
   rule: 'Always use async/await instead of .then() chains.',
-  evidence_path: 'src/api/users.ts',
-  evidence_snippet: 'const user = await db.users.find(id);',
+  evidencePath: 'src/api/users.ts',
+  evidenceSnippet: 'const user = await db.users.find(id);',
+  evidenceStartLine: 23,
+  evidenceEndLine: 31,
   confidence: 0.92,
   status: 'accepted',
-  skill_id: null,
+  skillId: null,
 };
 
 const candidate = (patch: Partial<ConventionCandidate>): ConventionCandidate => ({
@@ -38,15 +40,27 @@ describe('buildSkillDraft', () => {
     expect(draft.body).toContain('# payments-api-conventions');
     expect(draft.body).toContain('## async-await-then-chains');
     expect(draft.body).toContain('Always use async/await instead of .then() chains.');
-    expect(draft.body).toContain('Detected in `src/api/users.ts`:');
+    expect(draft.body).toContain('Detected in `src/api/users.ts:23-31`:');
     expect(draft.body).toContain('```ts\nconst user = await db.users.find(id);\n```');
   });
 
   it('infers the fence language from the file extension', () => {
-    const py = buildSkillDraft('r', [candidate({ evidence_path: 'app/main.py' })]);
+    const py = buildSkillDraft('r', [candidate({ evidencePath: 'app/main.py' })]);
     expect(py.body).toContain('```python');
-    const unknown = buildSkillDraft('r', [candidate({ evidence_path: 'Makefile' })]);
+    const unknown = buildSkillDraft('r', [candidate({ evidencePath: 'Makefile' })]);
     expect(unknown.body).toContain('```\nconst user');
+  });
+
+  it('collapses a single-line range and omits an unknown one', () => {
+    const single = buildSkillDraft('r', [
+      candidate({ evidenceStartLine: 7, evidenceEndLine: 7 }),
+    ]);
+    expect(single.body).toContain('Detected in `src/api/users.ts:7`:');
+
+    const none = buildSkillDraft('r', [
+      candidate({ evidenceStartLine: null, evidenceEndLine: null }),
+    ]);
+    expect(none.body).toContain('Detected in `src/api/users.ts`:');
   });
 
   it('suffixes colliding headings instead of emitting duplicates', () => {
@@ -68,8 +82,8 @@ describe('buildSkillDraft', () => {
   it('dedupes evidence_files, preserving candidate order', () => {
     const draft = buildSkillDraft('r', [
       base,
-      candidate({ id: 'b', evidence_path: 'src/db.ts' }),
-      candidate({ id: 'c', evidence_path: 'src/api/users.ts' }),
+      candidate({ id: 'b', evidencePath: 'src/db.ts' }),
+      candidate({ id: 'c', evidencePath: 'src/api/users.ts' }),
     ]);
     expect(draft.evidence_files).toEqual(['src/api/users.ts', 'src/db.ts']);
   });
@@ -81,8 +95,10 @@ describe('buildSkillDraft', () => {
         id: 'b',
         category: 'named-exports',
         rule: 'Export named functions, never a default export.',
-        evidence_path: 'src/db.ts',
-        evidence_snippet: 'export const db = drizzle(pool);',
+        evidencePath: 'src/db.ts',
+        evidenceSnippet: 'export const db = drizzle(pool);',
+        evidenceStartLine: 4,
+        evidenceEndLine: 4,
       }),
     ]);
     expect(draft.body).toMatchInlineSnapshot(`
@@ -94,7 +110,7 @@ describe('buildSkillDraft', () => {
       ## async-await-then-chains
       Always use async/await instead of .then() chains.
 
-      Detected in \`src/api/users.ts\`:
+      Detected in \`src/api/users.ts:23-31\`:
 
       \`\`\`ts
       const user = await db.users.find(id);
@@ -103,7 +119,7 @@ describe('buildSkillDraft', () => {
       ## named-exports
       Export named functions, never a default export.
 
-      Detected in \`src/db.ts\`:
+      Detected in \`src/db.ts:4\`:
 
       \`\`\`ts
       export const db = drizzle(pool);

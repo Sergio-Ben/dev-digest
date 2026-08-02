@@ -11,11 +11,13 @@ const CANDIDATE: ConventionCandidate = {
   id: "c1",
   category: "async-await-then-chains",
   rule: "Always use async/await instead of .then() chains.",
-  evidence_path: "src/api/users.ts",
-  evidence_snippet: "const user = await db.users.find(id);",
+  evidencePath: "src/api/users.ts",
+  evidenceSnippet: "const user = await db.users.find(id);",
+  evidenceStartLine: 23,
+  evidenceEndLine: 31,
   confidence: 0.92,
   status: "pending",
-  skill_id: null,
+  skillId: null,
 };
 
 function renderCard(props: Partial<React.ComponentProps<typeof ConventionCard>> = {}) {
@@ -31,19 +33,27 @@ describe("ConventionCard", () => {
     renderCard();
     expect(screen.getByText(CANDIDATE.rule)).toBeInTheDocument();
     expect(screen.getByText("async-await-then-chains")).toBeInTheDocument();
-    expect(screen.getByText("src/api/users.ts")).toBeInTheDocument();
-    expect(screen.getByText(CANDIDATE.evidence_snippet)).toBeInTheDocument();
+    expect(screen.getByText("src/api/users.ts:23-31")).toBeInTheDocument();
+    expect(screen.getByText(CANDIDATE.evidenceSnippet)).toBeInTheDocument();
     expect(screen.getByText("92%")).toBeInTheDocument();
   });
 
-  it("links the evidence location to GitHub", () => {
+  it("collapses the location when the snippet is a single line", () => {
     renderCard({
-      evidenceHref: "https://github.com/acme/payments-api/blob/main/src/api/users.ts",
+      candidate: { ...CANDIDATE, evidenceStartLine: 23, evidenceEndLine: 23 },
     });
-    const link = screen.getByRole("link", { name: /src\/api\/users\.ts/ });
+    expect(screen.getByText("src/api/users.ts:23")).toBeInTheDocument();
+  });
+
+  it("links the evidence location to GitHub at the verified line range", () => {
+    renderCard({
+      evidenceHref:
+        "https://github.com/acme/payments-api/blob/main/src/api/users.ts#L23-L31",
+    });
+    const link = screen.getByRole("link", { name: /src\/api\/users\.ts:23-31/ });
     expect(link).toHaveAttribute(
       "href",
-      "https://github.com/acme/payments-api/blob/main/src/api/users.ts",
+      "https://github.com/acme/payments-api/blob/main/src/api/users.ts#L23-L31",
     );
     // Opens away from the app — never navigate the triage list away.
     expect(link).toHaveAttribute("target", "_blank");
@@ -53,7 +63,7 @@ describe("ConventionCard", () => {
   it("renders the location as plain text when the repo is unknown", () => {
     renderCard({ evidenceHref: null });
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.getByText("src/api/users.ts")).toBeInTheDocument();
+    expect(screen.getByText("src/api/users.ts:23-31")).toBeInTheDocument();
   });
 
   it("fires onAccept and onReject with the candidate id", () => {

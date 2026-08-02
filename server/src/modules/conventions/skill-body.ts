@@ -51,8 +51,9 @@ export function buildSkillDraft(
     // `async-await-then-chains`); the rule slug is the fallback when the model
     // gave no category.
     const heading = uniqueSlug(slug(c.category ?? '') || slug(c.rule) || 'convention', used);
-    const location = c.evidence_path;
-    const fence = FENCE_BY_EXT[extOf(c.evidence_path)] ?? '';
+    const range = formatRange(c.evidenceStartLine, c.evidenceEndLine);
+    const location = range ? `${c.evidencePath}:${range}` : c.evidencePath;
+    const fence = FENCE_BY_EXT[extOf(c.evidencePath)] ?? '';
     return [
       `## ${heading}`,
       c.rule,
@@ -60,7 +61,7 @@ export function buildSkillDraft(
       `Detected in \`${location}\`:`,
       '',
       `\`\`\`${fence}`,
-      c.evidence_snippet.replace(/\s+$/, ''),
+      c.evidenceSnippet.replace(/\s+$/, ''),
       '```',
     ].join('\n');
   });
@@ -80,7 +81,7 @@ export function buildSkillDraft(
     name,
     description,
     body,
-    evidence_files: uniqueInOrder(accepted.map((c) => c.evidence_path)),
+    evidence_files: uniqueInOrder(accepted.map((c) => c.evidencePath)),
   };
 }
 
@@ -101,6 +102,12 @@ function uniqueSlug(base: string, used: Set<string>): string {
   while (used.has(candidate)) candidate = `${base}-${n++}`;
   used.add(candidate);
   return candidate;
+}
+
+function formatRange(start: number | null, end: number | null): string | null {
+  if (start === null) return null;
+  if (end === null || end === start) return String(start);
+  return `${start}-${end}`;
 }
 
 function extOf(path: string): string {

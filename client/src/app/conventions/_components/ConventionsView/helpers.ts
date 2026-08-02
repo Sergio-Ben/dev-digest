@@ -38,6 +38,8 @@ export function evidenceUrl(
   return githubBlobUrl(
     repo.full_name,
     repo.default_branch || "HEAD",
-    candidate.evidence_path,
+    candidate.evidencePath,
+    candidate.evidenceStartLine ?? undefined,
+    candidate.evidenceEndLine ?? undefined,
   );
 }

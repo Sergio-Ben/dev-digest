@@ -40,11 +40,13 @@ const candidate = (id: string, status: ConventionCandidate["status"]): Conventio
   id,
   category: "async-await",
   rule: `Rule ${id}`,
-  evidence_path: "src/api/users.ts",
-  evidence_snippet: "await db.users.find(id);",
+  evidencePath: "src/api/users.ts",
+  evidenceSnippet: "await db.users.find(id);",
+  evidenceStartLine: 4,
+  evidenceEndLine: 4,
   confidence: 0.9,
   status,
-  skill_id: null,
+  skillId: null,
 });
 
 function renderView() {

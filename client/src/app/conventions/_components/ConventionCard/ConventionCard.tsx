@@ -17,7 +17,13 @@ function confidenceColor(pct: number): string {
 }
 
 function evidenceLocation(c: ConventionCandidate): string {
-  return c.evidence_path;
+  if (c.evidenceStartLine == null) return c.evidencePath;
+  const end = c.evidenceEndLine;
+  const range =
+    end == null || end === c.evidenceStartLine
+      ? `${c.evidenceStartLine}`
+      : `${c.evidenceStartLine}-${end}`;
+  return `${c.evidencePath}:${range}`;
 }
 
 export function ConventionCard({
@@ -105,11 +111,11 @@ export function ConventionCard({
             icon="Copy"
             label={t("card.copySnippet")}
             size={22}
-            onClick={() => navigator.clipboard?.writeText(candidate.evidence_snippet)}
+            onClick={() => navigator.clipboard?.writeText(candidate.evidenceSnippet)}
           />
         </div>
         <pre className="mono" style={s.snippet}>
-          {candidate.evidence_snippet}
+          {candidate.evidenceSnippet}
         </pre>
 
         <div style={s.confidenceRow}>

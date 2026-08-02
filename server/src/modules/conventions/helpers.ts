@@ -14,11 +14,13 @@ export function toCandidateDto(row: ConventionRow): ConventionCandidate {
     rule: row.rule,
     // The columns are nullable for historical reasons; a candidate that reached
     // the DB always has verified evidence, so an empty string is unreachable.
-    evidence_path: row.evidencePath ?? '',
-    evidence_snippet: row.evidenceSnippet ?? '',
+    evidencePath: row.evidencePath ?? '',
+    evidenceSnippet: row.evidenceSnippet ?? '',
+    evidenceStartLine: row.evidenceStartLine,
+    evidenceEndLine: row.evidenceEndLine,
     confidence: row.confidence ?? 0,
     status: row.status as ConventionStatus,
-    skill_id: row.skillId,
+    skillId: row.skillId,
   };
 }
 

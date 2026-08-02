@@ -122,9 +122,12 @@ d('Conventions extractor (Testcontainers pg)', () => {
     expect(body.scan.candidate_count).toBe(2);
     expect(body.scan.sample_count).toBe(2);
 
+    // The line range comes from the REAL match, not from the model.
     const asyncRule = body.candidates.find((c: { category: string }) =>
       c.category === 'async-await-then-chains',
     );
+    expect(asyncRule.evidenceStartLine).toBe(4);
+    expect(asyncRule.evidenceEndLine).toBe(4);
     expect(asyncRule.status).toBe('pending');
 
     await app.close();

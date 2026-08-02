@@ -176,11 +176,13 @@ export const ConventionCandidate = z.object({
   id: z.string().uuid(),
   category: z.string().nullable(),
   rule: z.string(),
-  evidence_path: z.string(),
-  evidence_snippet: z.string(),
+  evidencePath: z.string(),
+  evidenceSnippet: z.string(),
+  evidenceStartLine: z.number().int().nullable(),
+  evidenceEndLine: z.number().int().nullable(),
   confidence: z.number().min(0).max(1),
   status: ConventionStatus,
-  skill_id: z.string().uuid().nullable(),
+  skillId: z.string().uuid().nullable(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
 

@@ -27,3 +27,10 @@ user asks about FIRST — these are curated and may already answer it — then r
 - Stack, commands, architecture, how to run → read `README.md`
 - Working inside a package → read that package's CLAUDE.md: `server/CLAUDE.md`, `client/CLAUDE.md`, `reviewer-core/CLAUDE.md`, `e2e/CLAUDE.md`
 - Agent prompt templates → read `docs/agent-prompts/`
+
+## Git Workflow
+
+**Automatically stage new files immediately after creation:**
+```bash
+git add path/to/new/file
+```

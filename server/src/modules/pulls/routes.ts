@@ -7,7 +7,7 @@ import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, rollupSeverities, type SeverityCounts } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -113,8 +113,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
     if (prIds.length > 0) {
@@ -127,6 +126,26 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
       }
+    }
+
+    // Per-severity FINDINGS tally per PR for the list's FINDINGS column. Counts
+    // findings from EVERY review of the PR — the same population the PR-detail
+    // severity chips count, so the list and the detail page never disagree.
+    // Same on-read join + JS grouping as the score block above.
+    const findingsByPr = new Map<string, SeverityCounts>();
+    if (prIds.length > 0) {
+      const findingRows = await container.db
+        .select({ prId: t.reviews.prId, severity: t.findings.severity })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+        .where(and(eq(t.reviews.workspaceId, workspaceId), inArray(t.reviews.prId, prIds)));
+      const byPr = new Map<string, { severity: string }[]>();
+      for (const f of findingRows) {
+        const list = byPr.get(f.prId);
+        if (list) list.push({ severity: f.severity });
+        else byPr.set(f.prId, [{ severity: f.severity }]);
+      }
+      for (const [prId, list] of byPr) findingsByPr.set(prId, rollupSeverities(list));
     }
 
     // Latest-review-batch COST per PR for the list's COST column. A "Review all"
@@ -194,6 +213,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: costByPr.has(r.id) ? costByPr.get(r.id)! : null,
+        findings: findingsByPr.get(r.id) ?? null,
       };
     });
   });

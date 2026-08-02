@@ -15,6 +15,8 @@ export interface CreateSkillInput {
   source?: 'manual' | 'imported_url' | 'extracted' | 'community';
   body: string;
   enabled?: boolean;
+  /** Repo files this skill was extracted from (conventions extractor). */
+  evidenceFiles?: string[];
 }
 
 export interface UpdateSkillInput {
@@ -74,6 +76,7 @@ export class SkillsService {
       source: input.source ?? 'manual',
       body: input.body,
       enabled: input.enabled,
+      ...(input.evidenceFiles !== undefined ? { evidenceFiles: input.evidenceFiles } : {}),
     });
     return toSkillDto(row);
   }

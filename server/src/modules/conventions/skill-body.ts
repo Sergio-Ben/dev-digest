@@ -51,8 +51,7 @@ export function buildSkillDraft(
     // `async-await-then-chains`); the rule slug is the fallback when the model
     // gave no category.
     const heading = uniqueSlug(slug(c.category ?? '') || slug(c.rule) || 'convention', used);
-    const range = formatRange(c.evidence_start_line, c.evidence_end_line);
-    const location = range ? `${c.evidence_path}:${range}` : c.evidence_path;
+    const location = c.evidence_path;
     const fence = FENCE_BY_EXT[extOf(c.evidence_path)] ?? '';
     return [
       `## ${heading}`,
@@ -102,12 +101,6 @@ function uniqueSlug(base: string, used: Set<string>): string {
   while (used.has(candidate)) candidate = `${base}-${n++}`;
   used.add(candidate);
   return candidate;
-}
-
-function formatRange(start: number | null, end: number | null): string | null {
-  if (start === null) return null;
-  if (end === null || end === start) return String(start);
-  return `${start}-${end}`;
 }
 
 function extOf(path: string): string {

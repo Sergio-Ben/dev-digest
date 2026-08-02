@@ -8,8 +8,6 @@ const base: ConventionCandidate = {
   rule: 'Always use async/await instead of .then() chains.',
   evidence_path: 'src/api/users.ts',
   evidence_snippet: 'const user = await db.users.find(id);',
-  evidence_start_line: 23,
-  evidence_end_line: 31,
   confidence: 0.92,
   status: 'accepted',
   skill_id: null,
@@ -40,7 +38,7 @@ describe('buildSkillDraft', () => {
     expect(draft.body).toContain('# payments-api-conventions');
     expect(draft.body).toContain('## async-await-then-chains');
     expect(draft.body).toContain('Always use async/await instead of .then() chains.');
-    expect(draft.body).toContain('Detected in `src/api/users.ts:23-31`:');
+    expect(draft.body).toContain('Detected in `src/api/users.ts`:');
     expect(draft.body).toContain('```ts\nconst user = await db.users.find(id);\n```');
   });
 
@@ -49,18 +47,6 @@ describe('buildSkillDraft', () => {
     expect(py.body).toContain('```python');
     const unknown = buildSkillDraft('r', [candidate({ evidence_path: 'Makefile' })]);
     expect(unknown.body).toContain('```\nconst user');
-  });
-
-  it('collapses a single-line range and omits an unknown one', () => {
-    const single = buildSkillDraft('r', [
-      candidate({ evidence_start_line: 7, evidence_end_line: 7 }),
-    ]);
-    expect(single.body).toContain('Detected in `src/api/users.ts:7`:');
-
-    const none = buildSkillDraft('r', [
-      candidate({ evidence_start_line: null, evidence_end_line: null }),
-    ]);
-    expect(none.body).toContain('Detected in `src/api/users.ts`:');
   });
 
   it('suffixes colliding headings instead of emitting duplicates', () => {
@@ -97,8 +83,6 @@ describe('buildSkillDraft', () => {
         rule: 'Export named functions, never a default export.',
         evidence_path: 'src/db.ts',
         evidence_snippet: 'export const db = drizzle(pool);',
-        evidence_start_line: 4,
-        evidence_end_line: 4,
       }),
     ]);
     expect(draft.body).toMatchInlineSnapshot(`
@@ -110,7 +94,7 @@ describe('buildSkillDraft', () => {
       ## async-await-then-chains
       Always use async/await instead of .then() chains.
 
-      Detected in \`src/api/users.ts:23-31\`:
+      Detected in \`src/api/users.ts\`:
 
       \`\`\`ts
       const user = await db.users.find(id);
@@ -119,7 +103,7 @@ describe('buildSkillDraft', () => {
       ## named-exports
       Export named functions, never a default export.
 
-      Detected in \`src/db.ts:4\`:
+      Detected in \`src/db.ts\`:
 
       \`\`\`ts
       export const db = drizzle(pool);

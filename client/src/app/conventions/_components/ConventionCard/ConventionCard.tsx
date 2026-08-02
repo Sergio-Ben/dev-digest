@@ -17,13 +17,7 @@ function confidenceColor(pct: number): string {
 }
 
 function evidenceLocation(c: ConventionCandidate): string {
-  if (c.evidence_start_line == null) return c.evidence_path;
-  const end = c.evidence_end_line;
-  const range =
-    end == null || end === c.evidence_start_line
-      ? `${c.evidence_start_line}`
-      : `${c.evidence_start_line}-${end}`;
-  return `${c.evidence_path}:${range}`;
+  return c.evidence_path;
 }
 
 export function ConventionCard({

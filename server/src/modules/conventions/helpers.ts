@@ -16,8 +16,6 @@ export function toCandidateDto(row: ConventionRow): ConventionCandidate {
     // the DB always has verified evidence, so an empty string is unreachable.
     evidence_path: row.evidencePath ?? '',
     evidence_snippet: row.evidenceSnippet ?? '',
-    evidence_start_line: row.evidenceStartLine,
-    evidence_end_line: row.evidenceEndLine,
     confidence: row.confidence ?? 0,
     status: row.status as ConventionStatus,
     skill_id: row.skillId,

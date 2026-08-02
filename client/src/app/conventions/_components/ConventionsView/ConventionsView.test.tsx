@@ -42,8 +42,6 @@ const candidate = (id: string, status: ConventionCandidate["status"]): Conventio
   rule: `Rule ${id}`,
   evidence_path: "src/api/users.ts",
   evidence_snippet: "await db.users.find(id);",
-  evidence_start_line: 4,
-  evidence_end_line: 4,
   confidence: 0.9,
   status,
   skill_id: null,

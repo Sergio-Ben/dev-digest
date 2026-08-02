@@ -39,7 +39,5 @@ export function evidenceUrl(
     repo.full_name,
     repo.default_branch || "HEAD",
     candidate.evidence_path,
-    candidate.evidence_start_line ?? undefined,
-    candidate.evidence_end_line ?? undefined,
   );
 }

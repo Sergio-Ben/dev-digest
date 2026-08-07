@@ -9,6 +9,10 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`api-reviewer.md`](./api-reviewer.md)
+
+Importable skill bodies for these agents live in [`docs/agent-skills/`](../agent-skills/)
+(e.g. [`api-reviewer/`](../agent-skills/api-reviewer/README.md)).
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the

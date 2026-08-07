@@ -88,6 +88,29 @@ describe("FindingsPanel (smoke)", () => {
     renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.getByText("No findings match")).toBeInTheDocument();
   });
+
+  it("filters by severity when a pill is clicked", () => {
+    const findings: FindingRecord[] = [
+      { ...FINDINGS[0]! },
+      {
+        ...FINDINGS[0]!,
+        id: "f2",
+        severity: "WARNING",
+        title: "Warn finding",
+      },
+    ];
+    renderWithIntl(<FindingsPanel findings={findings} prId="pr1" />);
+    // Both visible initially
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.getByText("Warn finding")).toBeInTheDocument();
+    // Click CRITICAL pill
+    fireEvent.click(screen.getByRole("button", { name: /critical/i }));
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.queryByText("Warn finding")).not.toBeInTheDocument();
+    // Click again → reset
+    fireEvent.click(screen.getByRole("button", { name: /critical/i }));
+    expect(screen.getByText("Warn finding")).toBeInTheDocument();
+  });
 });
 
 describe("FindingsPanel (severity filter)", () => {

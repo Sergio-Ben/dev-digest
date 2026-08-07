@@ -1,6 +1,10 @@
 import { z } from 'zod';
-import { Provider } from './knowledge.js';
-import { Finding } from './findings.js';
+// Extensionless relative imports, matching every sibling in this directory.
+// The SERVER copy of this file carries `.js` extensions (it's ESM under tsx);
+// the client is bundled by webpack, which has no `extensionAlias` configured
+// and cannot resolve `./knowledge.js` → `knowledge.ts`. Keep them off here.
+import { Provider } from './knowledge';
+import { Finding } from './findings';
 
 /**
  * Platform / scaffolding DTOs owned by F1:

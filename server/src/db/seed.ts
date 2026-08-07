@@ -100,6 +100,109 @@ export async function seed(
   }
   const repoId = repo!.id;
 
+  // PR #482's changed files, carrying real unified-diff `patch` text so the
+  // diff viewer — and Smart Diff's finding highlight + click-to-line — has
+  // something to render. The new-side line numbers these patches produce are
+  // exactly what the seeded findings cite: `src/config.ts:12` is the
+  // `sk_live_` key, `src/api/users.ts:45-52` is the N+1 loop. Each file's
+  // additions/deletions equal its patch's real +/- line counts, and the PR
+  // row's totals are their sum — change a patch, re-check all three.
+  //
+  // Hoisted out of the creation block below so the refresh at the end can
+  // re-apply it on EVERY seed run: that block only executes for a brand-new
+  // PR row, so without this an already-seeded DB would never gain the patches.
+  const pr482Files = (prId: string) => [
+      {
+        prId,
+        path: 'src/middleware/ratelimit.ts',
+        additions: 10,
+        deletions: 0,
+        patch: [
+          '@@ -24,2 +24,11 @@',
+          ' ',
+          ' export async function rateLimit(req: Req, res: Res, next: Next) {',
+          '+  const key = bucketKey(req);',
+          '+  const count = await redis.incr(key);',
+          '+  if (count === 1) await redis.expire(key, 3600);',
+          '+',
+          '+  if (count > limitFor(req)) {',
+          '+    return res.status(429).end();',
+          '+  }',
+          '+  return next();',
+          '+}',
+          '@@ -49,3 +52,4 @@',
+          ' function limitFor(req: Req) {',
+          '+  if (req.headers.authorization) return 1000;',
+          '   return 100;',
+          ' }',
+        ].join('\n'),
+      },
+      {
+        prId,
+        path: 'src/api/public/webhooks.ts',
+        additions: 5,
+        deletions: 1,
+        patch: [
+          '@@ -58,2 +60,3 @@',
+          ' export async function webhookHandler(req: Req, res: Res) {',
+          '+  const target = req.body.callback_url;',
+          '   const account = await db.accounts.find(req.accountId);',
+          '@@ -66,3 +68,6 @@',
+          '   const payload = buildPayload(req.body);',
+          '+  const token = account.apiToken;',
+          '+',
+          '+  await fetch(target, { headers: { Authorization: token } });',
+          '-  return res.status(200).end();',
+          '+  return res.status(202).end();',
+          ' }',
+        ].join('\n'),
+      },
+      {
+        prId,
+        path: 'src/config.ts',
+        additions: 4,
+        deletions: 0,
+        // The `sk_live_` literal lands on new-side line 12 — the exact line the
+        // CRITICAL "Hardcoded Stripe secret key" finding below cites.
+        patch: [
+          '@@ -9,5 +9,9 @@',
+          ' ',
+          ' export const config = {',
+          '   port: Number(process.env.PORT ?? 3000),',
+          '+  stripeKey: "sk_live_51H8xq2Ka9Vn3PqLm7Rd0bZ4Xc",',
+          '+  rateLimit: {',
+          '+    windowSec: 3600,',
+          '+  },',
+          '   redisUrl: process.env.REDIS_URL,',
+          ' };',
+        ].join('\n'),
+      },
+      {
+        prId,
+        path: 'src/api/users.ts',
+        additions: 7,
+        deletions: 2,
+        // The N+1 loop spans new-side lines 45-52 — the range the WARNING
+        // finding below cites.
+        patch: [
+          '@@ -42,6 +42,11 @@',
+          ' export async function listUsers(req: Req, res: Res) {',
+          '   const users = await db.users.findMany({ take: 50 });',
+          '   const out = [];',
+          '+  for (const u of users) {',
+          '+    // one query per user — N+1 once the limiter serializes requests',
+          '+    const orders = await db.orders.findMany({ where: { userId: u.id } });',
+          '+    out.push({ ...u, orderCount: orders.length });',
+          '+  }',
+          '-  return res.json(users);',
+          '-}',
+          '+  return res.json(out);',
+          '+}',
+          ' ',
+        ].join('\n'),
+      },
+  ];
+
   // ---- PR #482 (rate limiting) ----
   let [pr] = await db
     .select()
@@ -117,21 +220,17 @@ export async function seed(
         branch: 'feat/rate-limit-public',
         base: 'main',
         headSha: 'a1b2c3d4e5f6',
-        additions: 247,
-        deletions: 38,
-        filesCount: 9,
+        // Totals are the exact sum of the `pr_files` rows below, which in turn
+        // are the exact +/- line counts of their `patch` text. Keep all three
+        // in lock-step: the diff viewer renders the patch, the header renders
+        // these, and a mismatch reads as a bug.
+        additions: 26,
+        deletions: 3,
+        filesCount: 4,
         status: 'needs_review',
         body: 'Add rate limiting to public API endpoints to prevent abuse from unauthenticated clients.',
       })
       .returning();
-
-    // pr_files (subset)
-    await db.insert(t.prFiles).values([
-      { prId: pr!.id, path: 'src/middleware/ratelimit.ts', additions: 84, deletions: 0 },
-      { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
-      { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
-      { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
-    ]);
 
     // pr_commits
     await db.insert(t.prCommits).values({
@@ -183,6 +282,29 @@ export async function seed(
       },
     ]);
   }
+
+  // Refresh PR #482's files on EVERY seed run (delete + re-insert, the same
+  // shape `GET /pulls/:id` uses when it re-syncs from GitHub). The block above
+  // only runs for a brand-new PR row, so without this an already-seeded DB
+  // would keep whatever files it was first created with — and never pick up
+  // patch text added to the seed later. Scoped to this PR's rows only, so it
+  // can't touch reviews, findings, or run history.
+  const pr482Rows = pr482Files(pr!.id);
+  await db.delete(t.prFiles).where(eq(t.prFiles.prId, pr!.id));
+  await db.insert(t.prFiles).values(pr482Rows);
+
+  // Keep the PR row's headline totals equal to the sum of the files above.
+  // Like the files, these are only written at creation time, so a DB seeded
+  // before the patches existed would otherwise show a header (+247 / -38 /
+  // 9 files) that contradicts the four files actually rendered below it.
+  await db
+    .update(t.pullRequests)
+    .set({
+      additions: pr482Rows.reduce((n, f) => n + f.additions, 0),
+      deletions: pr482Rows.reduce((n, f) => n + f.deletions, 0),
+      filesCount: pr482Rows.length,
+    })
+    .where(eq(t.pullRequests.id, pr!.id));
 
   // ---- built-in agents (the three starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
@@ -473,7 +595,14 @@ Flag tests where mocking undermines the test's validity.
     }
   }
 
-  return { workspaceId, userId };
+  // ---- demo PRs #483-487 + their runs ----
+  // `seedDemoPullsAndRuns` was imported but never called, so `seed()` returned
+  // an object missing the `pullsCreated`/`runsCreated` it declares (the one
+  // typecheck error in this file) and a fresh DB got only PR #482. Both fixed
+  // by actually calling it. It is itself idempotent, keyed by (repo, number).
+  const demo = await seedDemoPullsAndRuns(db, { workspaceId, repoId });
+
+  return { workspaceId, userId, ...demo };
 }
 
 // CLI entrypoint

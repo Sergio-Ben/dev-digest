@@ -163,6 +163,9 @@ export default function PRDetailPage() {
               invalidateActiveRuns();
               invalidateRunHistory();
               refetchReviews();
+              // Smart Diff's finding_lines reflect the latest review's
+              // findings — refresh it whenever reviews are refreshed.
+              if (prId) qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
             }}
           />
         )}

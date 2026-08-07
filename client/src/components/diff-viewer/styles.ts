@@ -64,6 +64,14 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  /** Finding highlight (Smart Diff): a left accent bar + tinted background,
+   *  layered on top of the kind-based row background from `lineRowFor`. Uses
+   *  an inset box-shadow for the bar so it doesn't shift row width like a
+   *  border would. */
+  lineFindingHighlight: {
+    boxShadow: "inset 3px 0 0 var(--warn)",
+    background: "var(--warn-bg)",
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */

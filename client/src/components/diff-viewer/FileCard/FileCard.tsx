@@ -30,12 +30,43 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  findingLines,
+  anchorPrefix,
+  open: openProp,
+  onToggleOpen,
+  badge,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  /** Smart Diff: new-side line numbers to highlight in this file. */
+  findingLines?: number[];
+  /** Smart Diff: when set, each rendered line gets `${anchorPrefix}-L${newNo}`
+   *  as its DOM id, so a "N findings" badge can scroll to it. */
+  anchorPrefix?: string;
+  /** Smart Diff (controlled mode): when provided (even `false`), the parent
+   *  owns open/closed state and `onToggleOpen` must be provided too. When
+   *  `undefined`, falls back to the original uncontrolled behaviour. */
+  open?: boolean;
+  onToggleOpen?: () => void;
+  /** Smart Diff: rendered in the header next to the +/− stat (e.g. a
+   *  "N findings" chip). */
+  badge?: React.ReactNode;
+}) {
   const t = useTranslations("shell");
-  const [open, setOpen] = React.useState(
+  const [openState, setOpenState] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : openState;
+  const toggleOpen = () => {
+    if (isControlled) onToggleOpen?.();
+    else setOpenState((o) => !o);
+  };
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+  const findingSet = React.useMemo(() => new Set(findingLines ?? []), [findingLines]);
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -54,7 +85,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
 
   return (
     <div style={s.fileCard}>
-      <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
+      <div onClick={toggleOpen} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
         <span className="mono" style={s.filePath}>
@@ -64,6 +95,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
           <span style={s.addText}>+{file.additions}</span>{" "}
           <span style={s.delText}>−{file.deletions}</span>
         </span>
+        {badge}
         {commentCount > 0 && (
           <span
             style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-muted)" }}
@@ -85,6 +117,8 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                highlight={ln.newNo != null && findingSet.has(ln.newNo)}
+                anchorId={anchorPrefix && ln.newNo != null ? `${anchorPrefix}-L${ln.newNo}` : undefined}
               />
             ))
           )}

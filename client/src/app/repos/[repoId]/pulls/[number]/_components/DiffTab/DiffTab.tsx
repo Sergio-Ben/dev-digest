@@ -18,9 +18,11 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** Smart order: clicking a finding routes to its card in the Agent-runs tab. */
+  onOpenFinding?: (findingId: string) => void;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: DiffTabProps) {
   const t = useTranslations("brief");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -68,7 +70,14 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
   } else if (smartDiffError || !smartDiff || !hasSmartGroups) {
     diffArea = <DiffViewer files={files} commenting={commenting} />;
   } else {
-    diffArea = <SmartDiffViewer smartDiff={smartDiff} files={files} commenting={commenting} />;
+    diffArea = (
+      <SmartDiffViewer
+        smartDiff={smartDiff}
+        files={files}
+        commenting={commenting}
+        onOpenFinding={onOpenFinding}
+      />
+    );
   }
 
   return (

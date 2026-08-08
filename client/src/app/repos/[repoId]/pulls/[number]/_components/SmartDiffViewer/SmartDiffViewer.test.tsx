@@ -45,18 +45,29 @@ const SMART_DIFF: SmartDiff = {
     {
       role: "core",
       files: [
-        { path: "src/core.ts", pseudocode_summary: null, additions: 4, deletions: 0, finding_lines: [5] },
+        {
+          path: "src/core.ts",
+          pseudocode_summary: null,
+          additions: 4,
+          deletions: 0,
+          finding_lines: [5],
+          findings: [{ id: "finding-core-5", line: 5 }],
+        },
         // Present in the SmartDiff but absent from `files` — must not crash.
-        { path: "src/ghost.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] },
+        { path: "src/ghost.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [], findings: [] },
       ],
     },
     {
       role: "wiring",
-      files: [{ path: "src/wire.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] }],
+      files: [
+        { path: "src/wire.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [], findings: [] },
+      ],
     },
     {
       role: "boilerplate",
-      files: [{ path: "pnpm-lock.yaml", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] }],
+      files: [
+        { path: "pnpm-lock.yaml", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [], findings: [] },
+      ],
     },
   ],
   split_suggestion: { too_big: false, total_lines: 0, proposed_splits: [] },
@@ -87,11 +98,33 @@ describe("SmartDiffViewer", () => {
     expect(screen.getByText("added line four")).toBeInTheDocument();
   });
 
-  it("clicking the findings badge (re-)expands the file and scrolls to the finding", async () => {
-    renderWithIntl(<SmartDiffViewer smartDiff={SMART_DIFF} files={FILES} />);
+  it("clicking the findings badge jumps within the file, never routing away", async () => {
+    const onOpenFinding = vi.fn();
+    renderWithIntl(<SmartDiffViewer smartDiff={SMART_DIFF} files={FILES} onOpenFinding={onOpenFinding} />);
     // The core file starts open (it has findings) — collapse it manually via
     // its header, like a user who closed it, to exercise the badge's
     // "always end up open" behaviour rather than a no-op.
+    fireEvent.click(screen.getByText("src/core.ts"));
+    expect(screen.queryByText("added line four")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "1 finding" }));
+
+    await waitFor(() => expect(screen.getByText("added line four")).toBeInTheDocument());
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
+    expect(onOpenFinding).not.toHaveBeenCalled();
+  });
+
+  it("offers a per-line 'View finding' route on each flagged line", () => {
+    const onOpenFinding = vi.fn();
+    renderWithIntl(<SmartDiffViewer smartDiff={SMART_DIFF} files={FILES} onOpenFinding={onOpenFinding} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "View finding" }));
+
+    expect(onOpenFinding).toHaveBeenCalledWith("finding-core-5");
+  });
+
+  it("falls back to the in-diff jump when no route handler is given", async () => {
+    renderWithIntl(<SmartDiffViewer smartDiff={SMART_DIFF} files={FILES} />);
     fireEvent.click(screen.getByText("src/core.ts"));
     expect(screen.queryByText("added line four")).not.toBeInTheDocument();
 

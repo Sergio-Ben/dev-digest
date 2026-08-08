@@ -62,13 +62,25 @@ export default function PRDetailPage() {
   const focusFindingId = search.get("finding");
   const tab = search.get("tab") ?? (focusFindingId ? "findings" : "overview");
   const traceRunId = search.get("trace");
-  const setParam = (key: string, val: string | null) => {
+  const setParams = (patch: Record<string, string | null>, mode: "replace" | "push" = "replace") => {
     const sp = new URLSearchParams(search.toString());
-    if (val == null) sp.delete(key);
-    else sp.set(key, val);
-    router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
+    for (const [key, val] of Object.entries(patch)) {
+      if (val == null) sp.delete(key);
+      else sp.set(key, val);
+    }
+    const url = `/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`;
+    if (mode === "push") router.push(url);
+    else router.replace(url);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const setParam = (key: string, val: string | null) => setParams({ [key]: val });
+  // Switching tabs by hand drops any deep-link target, so coming back to the
+  // Agent-runs tab later doesn't re-focus a finding the user already left.
+  const setTab = (t: string) => setParams({ tab: t, finding: null });
+  // Smart Diff finding badge → that finding's CARD in the Agent-runs tab.
+  // Plain in-app routing (pushed, so Back returns to the diff) — no popup and
+  // no github.com hop; FindingsTab/FindingsPanel read `?finding=` and reveal
+  // the card.
+  const openFinding = (findingId: string) => setParams({ tab: "findings", finding: findingId }, "push");
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -142,7 +154,6 @@ export default function PRDetailPage() {
         {tab === "findings" && (
           <FindingsTab
             prId={prId}
-            prNumber={pr.number}
             liveRunIds={liveRunIds}
             reviewRunning={reviewRunning}
             lethalTrifecta={lethalTrifecta}
@@ -152,7 +163,6 @@ export default function PRDetailPage() {
             repoFullName={repoFullName}
             headSha={pr.head_sha}
             focusFindingId={focusFindingId}
-            onFocusFinding={(id) => setParam("finding", id)}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {
@@ -176,6 +186,7 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            onOpenFinding={openFinding}
           />
         )}
       </div>

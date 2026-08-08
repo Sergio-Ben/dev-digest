@@ -13,16 +13,17 @@ import {
 describe('groupFiles', () => {
   it('groups by role in ROLE_ORDER, omits empty groups, and sorts within a group', () => {
     const groups = groupFiles([
-      { path: 'pnpm-lock.yaml', additions: 500, deletions: 0, findingsCount: 0, finding_lines: [] },
-      { path: 'src/index.ts', additions: 10, deletions: 0, findingsCount: 0, finding_lines: [] },
+      { path: 'pnpm-lock.yaml', additions: 500, deletions: 0, findingsCount: 0, finding_lines: [], findings: [] },
+      { path: 'src/index.ts', additions: 10, deletions: 0, findingsCount: 0, finding_lines: [], findings: [] },
       {
         path: 'src/core-a.ts',
         additions: 5,
         deletions: 0,
         findingsCount: 1,
         finding_lines: [3],
+        findings: [{ id: 'finding-a', line: 3 }],
       },
-      { path: 'src/core-b.ts', additions: 50, deletions: 0, findingsCount: 0, finding_lines: [] },
+      { path: 'src/core-b.ts', additions: 50, deletions: 0, findingsCount: 0, finding_lines: [], findings: [] },
     ]);
 
     expect(groups.map((g) => g.role)).toEqual(['core', 'wiring', 'boilerplate']);
@@ -32,6 +33,9 @@ describe('groupFiles', () => {
     expect(core.files.map((f) => f.path)).toEqual(['src/core-a.ts', 'src/core-b.ts']);
     expect(core.files[0]!.pseudocode_summary).toBeNull();
     expect(core.files[0]!.finding_lines).toEqual([3]);
+    // The identifiable form is carried through untouched — it's what the
+    // client routes on when a finding badge is clicked.
+    expect(core.files[0]!.findings).toEqual([{ id: 'finding-a', line: 3 }]);
   });
 
   it('returns an empty groups array for no files', () => {

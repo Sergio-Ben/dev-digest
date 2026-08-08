@@ -81,12 +81,27 @@ export type PrHistory = z.infer<typeof PrHistory>;
 export const SmartDiffRole = z.enum(['core', 'wiring', 'boilerplate']);
 export type SmartDiffRole = z.infer<typeof SmartDiffRole>;
 
+/**
+ * One finding anchored to a line of this file. Carries the finding's ID so the
+ * Smart Diff can deep-link to that finding's CARD in the Agent-runs tab
+ * (in-app routing) — `finding_lines` alone only says "something is flagged
+ * here", which is not enough to identify which finding was clicked.
+ */
+export const SmartDiffFinding = z.object({
+  id: z.string(),
+  line: z.number().int(),
+});
+export type SmartDiffFinding = z.infer<typeof SmartDiffFinding>;
+
 export const SmartDiffFile = z.object({
   path: z.string(),
   pseudocode_summary: z.string().nullish(),
   additions: z.number().int(),
   deletions: z.number().int(),
+  /** Anchor lines only — kept for line highlighting and the badge's count. */
   finding_lines: z.array(z.number().int()),
+  /** Same findings as `finding_lines`, same order, but identifiable. */
+  findings: z.array(SmartDiffFinding).default([]),
 });
 export type SmartDiffFile = z.infer<typeof SmartDiffFile>;
 

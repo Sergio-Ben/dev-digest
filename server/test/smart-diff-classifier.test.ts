@@ -14,8 +14,17 @@ describe('classifyFile', () => {
     }
   });
 
+  it('classifies any *.lock file as boilerplate by extension, not just the known basenames', () => {
+    expect(classifyFile('deps/custom.lock')).toBe('boilerplate');
+    expect(classifyFile('flake.lock')).toBe('boilerplate');
+  });
+
   it('classifies dist/index.ts as boilerplate — directory precedes the wiring basename rule', () => {
     expect(classifyFile('dist/index.ts')).toBe('boilerplate');
+  });
+
+  it('classifies a source file anywhere under dist/ as boilerplate', () => {
+    expect(classifyFile('packages/api/dist/modules/service.js')).toBe('boilerplate');
   });
 
   it('classifies distribution/service.ts as core — segment match, not substring', () => {

@@ -20,6 +20,13 @@ export function fileAnchorId(path: string): string {
   return `sd-${path.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
+/** The finding anchored at `line` in this file, if any. Several findings can
+ *  share a line (two agents flagging the same spot) — the first wins, matching
+ *  the order `finding_lines` renders in. */
+export function findingIdAtLine(file: SmartDiffFile, line: number): string | undefined {
+  return (file.findings ?? []).find((f) => f.line === line)?.id;
+}
+
 /** Index PrFiles by path for O(1) join against the SmartDiff's file ordering
  *  (the SmartDiff contract carries no patch text — real diffs come from
  *  `PrFile`, joined here by path). */

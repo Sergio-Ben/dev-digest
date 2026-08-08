@@ -20,13 +20,14 @@ import {
   SCROLL_MAX_ATTEMPTS,
   FINDING_FLASH_MS,
 } from "./constants";
-import { shouldStartOpen, fileAnchorId, indexFilesByPath } from "./helpers";
+import { shouldStartOpen, fileAnchorId, findingIdAtLine, indexFilesByPath } from "./helpers";
 import { s } from "./styles";
 
 interface SmartDiffViewerProps {
   smartDiff: SmartDiff;
   files: PrFile[];
   commenting?: DiffCommentApi;
+  onOpenFinding?: (findingId: string) => void;
 }
 
 /** Scroll to (and briefly flash) a file's first finding line, retrying a few
@@ -51,7 +52,7 @@ function scrollToFinding(anchorId: string, attempt = 0) {
   }
 }
 
-export function SmartDiffViewer({ smartDiff, files, commenting }: SmartDiffViewerProps) {
+export function SmartDiffViewer({ smartDiff, files, commenting, onOpenFinding }: SmartDiffViewerProps) {
   const t = useTranslations("brief");
   const filesByPath = React.useMemo(() => indexFilesByPath(files), [files]);
 
@@ -93,6 +94,11 @@ export function SmartDiffViewer({ smartDiff, files, commenting }: SmartDiffViewe
     window.setTimeout(() => scrollToFinding(`${fileAnchorId(file.path)}-L${line}`), 0);
   };
 
+  const openFinding = (file: SmartDiffFile, findingId: string | undefined) => {
+    if (onOpenFinding && findingId) onOpenFinding(findingId);
+    else jumpToFirstFinding(file);
+  };
+
   const hasGroups = smartDiff.groups.some((g) => g.files.length > 0);
   if (!hasGroups) {
     return <div style={s.empty}>{t("smartDiff.empty")}</div>;
@@ -129,6 +135,12 @@ export function SmartDiffViewer({ smartDiff, files, commenting }: SmartDiffViewe
                     anchorPrefix={fileAnchorId(file.path)}
                     open={openMap[file.path] ?? shouldStartOpen(file, group.role)}
                     onToggleOpen={() => toggle(file.path)}
+                    onFindingLineClick={
+                      onOpenFinding
+                        ? (line) => openFinding(file, findingIdAtLine(file, line))
+                        : undefined
+                    }
+                    findingLineTitle={t("smartDiff.viewFinding")}
                     badge={
                       hasFindings ? (
                         <button
@@ -136,6 +148,9 @@ export function SmartDiffViewer({ smartDiff, files, commenting }: SmartDiffViewe
                           aria-label={t("smartDiff.findingsCount", { count: file.finding_lines.length })}
                           onClick={(e) => {
                             e.stopPropagation();
+                            // Header badge stays an in-file jump: expand this
+                            // card and scroll to its first flagged line. Only
+                            // the per-line "View finding" button routes away.
                             jumpToFirstFinding(file);
                           }}
                           style={s.findingsBadge}

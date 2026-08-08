@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { PrFile, SmartDiffFile } from "@devdigest/shared";
-import { shouldStartOpen, fileAnchorId, indexFilesByPath } from "./helpers";
+import { shouldStartOpen, fileAnchorId, findingIdAtLine, indexFilesByPath } from "./helpers";
 import { AUTO_EXPAND_MAX_LINES } from "@/components/diff-viewer/constants";
 
 function file(overrides: Partial<SmartDiffFile> = {}): SmartDiffFile {
@@ -10,6 +10,7 @@ function file(overrides: Partial<SmartDiffFile> = {}): SmartDiffFile {
     additions: 5,
     deletions: 2,
     finding_lines: [],
+    findings: [],
     ...overrides,
   };
 }
@@ -35,6 +36,30 @@ describe("shouldStartOpen", () => {
   it("keeps large core/wiring files closed past the auto-expand budget", () => {
     const large = file({ additions: AUTO_EXPAND_MAX_LINES + 100, deletions: 0 });
     expect(shouldStartOpen(large, "core")).toBe(false);
+  });
+});
+
+describe("findingIdAtLine", () => {
+  const multi = file({
+    finding_lines: [3, 9],
+    findings: [
+      { id: "f-3", line: 3 },
+      { id: "f-9", line: 9 },
+    ],
+  });
+
+  it("resolves each flagged line to its own finding id", () => {
+    expect(findingIdAtLine(multi, 3)).toBe("f-3");
+    expect(findingIdAtLine(multi, 9)).toBe("f-9");
+  });
+
+  it("returns undefined for an unflagged line", () => {
+    expect(findingIdAtLine(multi, 4)).toBeUndefined();
+  });
+
+  it("tolerates a payload cached before `findings` existed", () => {
+    const legacy = { ...file({ finding_lines: [3] }), findings: undefined } as unknown as SmartDiffFile;
+    expect(findingIdAtLine(legacy, 3)).toBeUndefined();
   });
 });
 

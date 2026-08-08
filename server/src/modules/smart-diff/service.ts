@@ -9,7 +9,7 @@
  * must work fully offline and cost nothing to compute.
  */
 import { and, desc, eq } from 'drizzle-orm';
-import type { SmartDiff } from '@devdigest/shared';
+import type { SmartDiff, SmartDiffFinding } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import type { Container } from '../../platform/container.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -48,6 +48,7 @@ export class SmartDiffService {
     const findingRows = latestReview
       ? await db
           .select({
+            id: t.findings.id,
             file: t.findings.file,
             startLine: t.findings.startLine,
             endLine: t.findings.endLine,
@@ -56,7 +57,9 @@ export class SmartDiffService {
           .where(eq(t.findings.reviewId, latestReview.id))
       : [];
 
-    // file path -> ONE entry per finding, at that finding's ANCHOR line.
+    // file path -> ONE entry per finding, at that finding's ANCHOR line, and
+    // carrying the finding's ID so the client can route a badge click to that
+    // finding's card in the Agent-runs tab.
     //
     // Deliberately NOT the expanded `start_line..end_line` span, and
     // deliberately NOT deduped:
@@ -67,23 +70,26 @@ export class SmartDiffService {
     //    lines rather than shading whole ranges, and gives the badge's
     //    click-to-jump an unambiguous target (`finding_lines[0]`).
     // The client Set-ifies this list for highlighting, so repeats are safe.
-    const linesByFile = new Map<string, number[]>();
+    const findingsByFile = new Map<string, SmartDiffFinding[]>();
     for (const f of findingRows) {
       // A malformed row can have start > end; the anchor is the lower bound.
       const anchor = Math.min(f.startLine, f.endLine);
-      const list = linesByFile.get(f.file);
-      if (list) list.push(anchor);
-      else linesByFile.set(f.file, [anchor]);
+      const list = findingsByFile.get(f.file);
+      if (list) list.push({ id: f.id, line: anchor });
+      else findingsByFile.set(f.file, [{ id: f.id, line: anchor }]);
     }
 
     const fileInputs: SmartDiffFileInput[] = files.map((f) => {
-      const lines = linesByFile.get(f.path) ?? [];
+      // `findings` and `finding_lines` are the SAME list in the SAME order —
+      // sort once, then project, or the two would disagree index-for-index.
+      const sorted = [...(findingsByFile.get(f.path) ?? [])].sort((a, b) => a.line - b.line);
       return {
         path: f.path,
         additions: f.additions,
         deletions: f.deletions,
-        findingsCount: lines.length,
-        finding_lines: [...lines].sort((a, b) => a - b),
+        findingsCount: sorted.length,
+        finding_lines: sorted.map((x) => x.line),
+        findings: sorted,
       };
     });
 

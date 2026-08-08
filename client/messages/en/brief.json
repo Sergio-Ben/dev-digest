@@ -36,6 +36,7 @@
     },
     "filesCount": "{count, plural, =1 {# file} other {# files}}",
     "findingsCount": "{count, plural, =1 {# finding} other {# findings}}",
+    "viewFinding": "View finding",
     "splitSuggestion": {
       "title": "{count} lines changed — consider splitting this PR"
     },

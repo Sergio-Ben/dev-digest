@@ -5,7 +5,12 @@
  * DB: `groupFiles` and `buildSplitSuggestion` take plain data in, return
  * plain data out.
  */
-import type { SmartDiffFile, SmartDiffGroup, SmartDiffRole } from '@devdigest/shared';
+import type {
+  SmartDiffFile,
+  SmartDiffFinding,
+  SmartDiffGroup,
+  SmartDiffRole,
+} from '@devdigest/shared';
 import { classifyFile, compareFilesForReview, type RankableFile } from './classifier.js';
 import {
   ROLE_ORDER,
@@ -14,9 +19,12 @@ import {
   SPLIT_TOO_BIG_TOTAL_LINES,
 } from './constants.js';
 
-/** Input shape for one PR file, already carrying its computed finding lines. */
+/** Input shape for one PR file, already carrying its computed findings.
+ *  `finding_lines` and `findings` describe the same findings in the same
+ *  order — the caller builds both from one sorted list. */
 export interface SmartDiffFileInput extends RankableFile {
   finding_lines: number[];
+  findings: SmartDiffFinding[];
 }
 
 /**
@@ -46,6 +54,7 @@ export function groupFiles(files: SmartDiffFileInput[]): SmartDiffGroup[] {
       additions: f.additions,
       deletions: f.deletions,
       finding_lines: f.finding_lines,
+      findings: f.findings,
     }));
     groups.push({ role, files: dtoFiles });
   }

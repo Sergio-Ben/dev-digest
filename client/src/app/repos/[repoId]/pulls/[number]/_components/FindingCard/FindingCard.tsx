@@ -18,7 +18,12 @@ import {
   type Category,
 } from "@devdigest/ui";
 import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
-import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
+import {
+  SEV_COLOR,
+  SEV_COLOR_FALLBACK,
+  TARGET_SCROLL_BEHAVIOR,
+  TARGET_SCROLL_BLOCK,
+} from "./constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/utils/githubUrls";
 import { s } from "./styles";
@@ -31,6 +36,7 @@ export function FindingCard({
   pending,
   repoFullName,
   headSha,
+  targeted,
 }: {
   f: FindingRecord;
   focused?: boolean;
@@ -39,9 +45,23 @@ export function FindingCard({
   pending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** This card is the deep-link target (`?finding=<id>`, e.g. clicked in the
+   *  Smart Diff): expand it, scroll it into view and flash it once. */
+  targeted?: boolean;
 }) {
   const t = useTranslations("prReview");
-  const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
+  const [expanded, setExpanded] = React.useState(defaultExpanded ?? targeted ?? false);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Deep-link arrival: the card may mount long after the URL changed (the tab
+  // switches, the accordion opens, then this renders), so drive it off the
+  // prop rather than a one-shot on mount.
+  React.useEffect(() => {
+    if (!targeted) return;
+    setExpanded(true);
+    rootRef.current?.scrollIntoView({ behavior: TARGET_SCROLL_BEHAVIOR, block: TARGET_SCROLL_BLOCK });
+  }, [targeted]);
+
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -52,7 +72,7 @@ export function FindingCard({
   const muted = accepted || dismissed;
 
   return (
-    <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
+    <div ref={rootRef} data-finding-id={f.id} style={s.card(!!focused, sevColor, muted, !!targeted)}>
       <div onClick={() => setExpanded((e) => !e)} style={s.header}>
         <div style={s.badgeWrap}>
           <SeverityBadge severity={f.severity as Severity} compact />

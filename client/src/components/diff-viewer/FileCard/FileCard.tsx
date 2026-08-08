@@ -38,6 +38,8 @@ export function FileCard({
   open: openProp,
   onToggleOpen,
   badge,
+  onFindingLineClick,
+  findingLineTitle,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
@@ -54,6 +56,12 @@ export function FileCard({
   /** Smart Diff: rendered in the header next to the +/− stat (e.g. a
    *  "N findings" chip). */
   badge?: React.ReactNode;
+  /** Smart Diff: when set, every highlighted (finding) line gets a small
+   *  "go to this finding" affordance calling back with its new-side number. */
+  onFindingLineClick?: (line: number) => void;
+  /** Label/tooltip for that affordance — passed in so this shared component
+   *  stays free of route-specific copy. */
+  findingLineTitle?: string;
 }) {
   const t = useTranslations("shell");
   const [openState, setOpenState] = React.useState(
@@ -110,17 +118,26 @@ export function FileCard({
           {lines.length === 0 ? (
             <div style={s.noDiff}>{t("diffViewer.noDiffText")}</div>
           ) : (
-            lines.map((ln, i) => (
-              <CodeLine
-                key={i}
-                ln={ln}
-                path={file.path}
-                threads={threadsForLine(ln, matched)}
-                commenting={commenting}
-                highlight={ln.newNo != null && findingSet.has(ln.newNo)}
-                anchorId={anchorPrefix && ln.newNo != null ? `${anchorPrefix}-L${ln.newNo}` : undefined}
-              />
-            ))
+            lines.map((ln, i) => {
+              const flagged = ln.newNo != null && findingSet.has(ln.newNo);
+              return (
+                <CodeLine
+                  key={i}
+                  ln={ln}
+                  path={file.path}
+                  threads={threadsForLine(ln, matched)}
+                  commenting={commenting}
+                  highlight={flagged}
+                  anchorId={anchorPrefix && ln.newNo != null ? `${anchorPrefix}-L${ln.newNo}` : undefined}
+                  onFindingClick={
+                    flagged && onFindingLineClick && ln.newNo != null
+                      ? () => onFindingLineClick(ln.newNo!)
+                      : undefined
+                  }
+                  findingTitle={findingLineTitle}
+                />
+              );
+            })
           )}
           {commenting && commenting.showComments && <OutdatedComments threads={outdated} />}
         </div>

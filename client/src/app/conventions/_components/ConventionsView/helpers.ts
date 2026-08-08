@@ -1,6 +1,6 @@
 import type { ConventionCandidate, Repo } from "@devdigest/shared";
-import { githubBlobUrl } from "@/lib/github-urls";
 import { DAY_MS, HOUR_MS, MINUTE_MS } from "./constants";
+import {githubBlobUrl} from "@/lib/utils";
 
 /** Translator shape we need — keeps these helpers testable without next-intl. */
 type T = (key: string, values?: Record<string, string | number>) => string;

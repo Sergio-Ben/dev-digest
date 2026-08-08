@@ -26,6 +26,11 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
+  // Outbound fetching of external http(s) references found in a PR body
+  // (intent layer). Default ON — the WebFetchClient adapter is SSRF-guarded.
+  // Set EXTERNAL_FETCH_ENABLED=false to disable external URLs org-wide;
+  // repo-file and GitHub references are unaffected by the flag.
+  EXTERNAL_FETCH_ENABLED: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
@@ -60,6 +65,13 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Whether external http(s) references in a PR body may be fetched through
+   * `container.webFetch`. Default ON — set EXTERNAL_FETCH_ENABLED=false to
+   * disable, in which case URL references are skipped (repo-file and GitHub
+   * references still resolve).
+   */
+  externalFetchEnabled: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -78,5 +90,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    externalFetchEnabled: parsed.EXTERNAL_FETCH_ENABLED !== 'false',
   };
 }

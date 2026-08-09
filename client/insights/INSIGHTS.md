@@ -21,7 +21,13 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 2026-06-17 — `createPortal(content, document.body)` escapes `overflow: hidden` containers. Use for any overlay/popover rendered inside a clipped container. ref: client/src/app/repos/[repoId]/pulls/_components/FindingsPopover/FindingsPopover.tsx:96
 
+2026-06-29 — `createPortal(content, document.body)` in a `"use client"` component is safe without a `mounted` guard because Next.js App Router never SSR-renders Client Components — they hydrate in the browser only. The `mounted` guard pattern (`const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), [])`) is needed only for Server Components or pages with `ssr` enabled. ref: client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/BlastGraphLightbox.tsx:1
+
 ## What Doesn't Work
+
+2026-06-29 — `{count && <Component />}` renders the literal number `0` in the DOM when `count === 0` — React renders falsy numbers (0, -0, NaN) as text nodes. Always use `{count > 0 && <Component />}` for numeric guards. `{!!count && ...}` also works but is less readable. ref: client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/SummaryBar.tsx:1
+
+2026-06-29 — A d3 force-simulation graph must be mounted/unmounted (not toggled via CSS `display:none`). When the container is hidden via CSS, `getBoundingClientRect()` returns 0 for width/height and the simulation places all nodes at the origin. Correct pattern: conditionally render the graph (`{graphOpen && <BlastGraph />}`) so it mounts with real dimensions. ref: client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/BlastGraph.tsx:1
 
 2026-06-18 — Fixing `.js` extensions in `client/src/vendor/shared/index.ts` alone is NOT enough. The individual contract files also import each other with `.js` extensions (`eval-ci.ts`, `observability.ts`, `platform.ts`, `productionize.ts`, `review-api.ts`, `adapters.ts`). All 6 must be fixed in addition to the barrel. Grep: `from '\./.*\.js'` in `client/src/vendor/shared/` to find them all. ref: client/src/vendor/shared/contracts/eval-ci.ts:2
 
@@ -32,6 +38,10 @@ See also: `insights/gotchas.md` for known quirks at project start.
 2026-06-17 — `Icon.AlertCircle` does not exist in `@devdigest/ui` — runtime error "Element type is invalid: expected a string... but got undefined". Never guess icon names; check existing usages (`grep -oh "Icon\.[A-Za-z]*"`) to find what's available. ref: client/src/app/repos/[repoId]/pulls/_components/FindingsPopover/FindingsPopover.tsx:56
 
 ## Codebase Patterns
+
+2026-06-29 — Business logic (data derivation) in JSX is a code smell in this codebase. Non-trivial derivations live in `helpers.ts` at module level (not in the component body): `buildCronSet()`, `buildSymbolRows()`, `endpointPillClass()`. Inlining them in JSX creates untestable logic and a harder-to-read template. Rule: if a derivation needs more than a single expression, move it to `helpers.ts` (then it is unit-testable — see `helpers.test.ts`). ref: client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/helpers.ts:1
+
+2026-06-29 — Known bug in `buildSymbolRows()`: it attributes endpoints/crons per symbol only inside `if (data.factsByFile)`, falling back to `impactedEndpoints` only in the `else`. When `factsByFile` is a non-empty object whose caller files don't match a symbol's callers (or is `{}`), that symbol's endpoints column is empty even though `impactedEndpoints` has data. Carried over as-is from the PR #50 homework (not yet fixed). Candidate fix: after the loop, `if (endpoints.length === 0) endpoints.push(...data.impactedEndpoints)`. ref: client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/helpers.ts:32
 
 2026-06-22 — `OverviewTab.tsx` originally had a hardcoded English string `"Description"` as a `SectionLabel` child — violating the no-hardcoded-strings rule. This was fixed (migrated to `t("overview.descriptionLabel")`) when the `prId` prop was added in T8. Future implementers touching this file: the fix is already in place, don't revert it. ref: client/src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx:1
 
@@ -66,6 +76,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 2026-06-20 — `src/components/showcase/Showcase.tsx` exports `Gallery`, not `Showcase` — despite the filename. Writing `export { Showcase } from "./showcase/Showcase"` in a barrel produces `TS2305: Module has no exported member 'Showcase'`. Fix: `export { Gallery } from "./showcase/Showcase"`. ref: client/src/components/showcase/Showcase.tsx:58
 
 ## Session Notes
+
+2026-06-29 — Blast Radius full stack (client, ported from PR #50 lesson-04): `useBlastRadius` hook (staleTime 5min, no-retry on 404); `BlastRadiusCard` with `SummaryBar` / `SymbolList` / `PriorPrsAccordion` sub-components; `helpers.ts` module-level pure functions; `BlastGraph` d3 force simulation; `BlastGraphLightbox` via `createPortal`. Mounted into our own `OverviewTab` (kept our self-contained `IntentCard`) as a two-column grid (`gridTemplateColumns: 1fr 1fr`, Intent left / Blast right) wrapped in `react-error-boundary`. Added deps d3 + @types/d3 + react-error-boundary, and the `blastRadius` i18n block. Hermetic test: `helpers.test.ts` (5 tests). Files: client/src/lib/hooks/pulls.ts, client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/, client/src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx, client/messages/en/prReview.json.
 
 2026-06-22 — T8 Intent card + OverviewTab wiring → created IntentCard.tsx (Card + SectionLabel + Button loading pattern, useIntent/useRecomputeIntent hooks, loading/error/empty states, i18n via prReview namespace); added `prId: string | null` to OverviewTab; passed prId from page.tsx; added intent + overview i18n keys to prReview.json; exported intent hooks from lib/hooks/index.ts barrel. Typecheck and all 32 tests green. Files: client/src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/IntentCard.tsx, client/src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx, client/src/app/repos/[repoId]/pulls/[number]/page.tsx, client/messages/en/prReview.json, client/src/lib/hooks/index.ts.
 

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -202,6 +202,30 @@ export class AgentsRepository {
   async skillIdsForAgent(agentId: string): Promise<string[]> {
     const links = await this.linkedSkills(agentId);
     return links.map((l) => l.skill.id);
+  }
+
+  /** How many skills are linked to one agent. */
+  async skillCount(agentId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ cnt: count() })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agentId));
+    return Number(row?.cnt ?? 0);
+  }
+
+  /**
+   * Skill counts for every agent in a workspace, keyed by agent id — one query
+   * for a whole list instead of N. Agents with no linked skills are absent from
+   * the map (callers default to 0).
+   */
+  async skillCountsForWorkspace(workspaceId: string): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({ agentId: t.agentSkills.agentId, cnt: count() })
+      .from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agents.id, t.agentSkills.agentId))
+      .where(eq(t.agents.workspaceId, workspaceId))
+      .groupBy(t.agentSkills.agentId);
+    return new Map(rows.map((r) => [r.agentId, Number(r.cnt)]));
   }
 
   /** Link a skill to an agent at a given order (idempotent: upserts order). */

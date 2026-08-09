@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord, ReviewRecord } from "@devdigest/shared";
@@ -60,11 +60,12 @@ const RUNS: ReviewRecord[] = [
   review("b", "Performance Reviewer", [finding("f4", "WARNING", "N+1 query", "b")]),
 ];
 
-function renderTab() {
+function renderTab(focusFindingId: string | null = null) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
       <FindingsTab
         prId="pr1"
+        focusFindingId={focusFindingId}
         liveRunIds={[]}
         reviewRunning={false}
         lethalTrifecta={[]}
@@ -81,6 +82,11 @@ function renderTab() {
 }
 
 describe("FindingsTab severity counters", () => {
+  // jsdom has no scrollIntoView; a deep-linked card scrolls itself into view.
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
   it("counts every finding across all runs", () => {
     renderTab();
     expect(screen.getByText("2 CRITICAL")).toBeInTheDocument();
@@ -132,6 +138,24 @@ describe("FindingsTab severity counters", () => {
     expect(screen.queryByText("N+1 query")).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("2 WARNING"));
     expect(screen.getByText("N+1 query")).toBeInTheDocument();
+  });
+
+  it("reveals a deep-linked finding's card inside an otherwise-collapsed run", () => {
+    // f4 lives in run B, which starts collapsed (only i === 0 opens).
+    renderTab("f4");
+    const card = document.querySelector('[data-finding-id="f4"]');
+    expect(card).not.toBeNull();
+    // Expanded on arrival, so the rationale is readable without another click.
+    expect(within(card as HTMLElement).getByText("why")).toBeInTheDocument();
+  });
+
+  it("keeps a deep-linked finding visible even under a severity filter that excludes it", () => {
+    renderTab("f4");
+    fireEvent.click(screen.getByText("2 CRITICAL"));
+    // Run B has no CRITICAL at all — it survives only because it owns the
+    // target (open, so its name appears in both the header and the banner).
+    expect(screen.getAllByText("Performance Reviewer").length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-finding-id="f4"]')).not.toBeNull();
   });
 
   it("marks the active chip as selected", () => {

@@ -83,7 +83,7 @@ describe('listRunsForPull — severity aggregation', () => {
       ],
     );
 
-    const [result] = await listRunsForPull(db, 'ws-1', 'pr-1');
+    const result = (await listRunsForPull(db, 'ws-1', 'pr-1'))[0]!;
 
     expect(result.findings_critical).toBe(2);
     expect(result.findings_warning).toBe(3);
@@ -96,7 +96,7 @@ describe('listRunsForPull — severity aggregation', () => {
       [sevRow('run-1', 'CRITICAL', 4)],
     );
 
-    const [result] = await listRunsForPull(db, 'ws-1', 'pr-1');
+    const result = (await listRunsForPull(db, 'ws-1', 'pr-1'))[0]!;
 
     expect(result.findings_critical).toBe(4);
     expect(result.findings_warning).toBe(0);
@@ -136,7 +136,7 @@ describe('listRunsForPull — severity aggregation', () => {
   it('all severity counts are 0 when second query returns no rows', async () => {
     const db = makeDb([runRow('run-1')], []);
 
-    const [result] = await listRunsForPull(db, 'ws-1', 'pr-1');
+    const result = (await listRunsForPull(db, 'ws-1', 'pr-1'))[0]!;
 
     expect(result.findings_critical).toBe(0);
     expect(result.findings_warning).toBe(0);

@@ -129,6 +129,23 @@ export const cs = {
     zIndex: 1,
     boxShadow: "0 1px 3px rgba(0,0,0,.35)",
   } satisfies CSSProperties,
+  /** Smart Diff: "go to this finding" affordance on a flagged line. Sits at
+   *  the row's right edge so it never covers code or the "+" comment button. */
+  findingBtn: {
+    flexShrink: 0,
+    alignSelf: "center",
+    marginRight: 8,
+    padding: "1px 8px",
+    borderRadius: 999,
+    border: "1px solid var(--warn)",
+    background: "transparent",
+    color: "var(--warn)",
+    fontSize: 11,
+    fontWeight: 600,
+    lineHeight: "16px",
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+  } satisfies CSSProperties,
   /** Indented rail for threads/composer, aligned under the code (past gutter). */
   thread: {
     margin: "6px 14px 8px 58px",

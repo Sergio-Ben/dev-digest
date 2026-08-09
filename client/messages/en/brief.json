@@ -15,5 +15,31 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "smartDiff": {
+    "order": {
+      "smart": "Smart order",
+      "original": "Original order"
+    },
+    "orderToggleLabel": "Diff order",
+    "core": {
+      "label": "Core logic",
+      "description": "The substance of the change — review closely"
+    },
+    "wiring": {
+      "label": "Wiring",
+      "description": "Hooks the core into the app"
+    },
+    "boilerplate": {
+      "label": "Boilerplate",
+      "description": "Generated, locked, or mechanical — skim or skip"
+    },
+    "filesCount": "{count, plural, =1 {# file} other {# files}}",
+    "findingsCount": "{count, plural, =1 {# finding} other {# findings}}",
+    "viewFinding": "View finding",
+    "splitSuggestion": {
+      "title": "{count} lines changed — consider splitting this PR"
+    },
+    "empty": "No changes to group yet."
   }
 }

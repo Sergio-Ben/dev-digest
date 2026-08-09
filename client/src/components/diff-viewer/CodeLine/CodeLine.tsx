@@ -14,11 +14,24 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  highlight,
+  anchorId,
+  onFindingClick,
+  findingTitle,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  /** Smart Diff: render this row with a finding highlight (left accent bar +
+   *  tinted background). */
+  highlight?: boolean;
+  /** Smart Diff: DOM id on the row's outer element, for scroll-to-finding. */
+  anchorId?: string;
+  /** Smart Diff: go to this line's finding card. Rendered as an explicit
+   *  button (not a row-wide click) so selecting the code still works. */
+  onFindingClick?: () => void;
+  findingTitle?: string;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -37,11 +50,12 @@ export function CodeLine({
 
   return (
     <div
+      id={anchorId}
       style={cs.rowWrap}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={lineRowFor(ln.kind)}>
+      <div style={{ ...lineRowFor(ln.kind), ...(highlight ? s.lineFindingHighlight : undefined) }}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button
@@ -62,6 +76,11 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
+        {onFindingClick && (
+          <button type="button" title={findingTitle} onClick={onFindingClick} style={cs.findingBtn}>
+            {findingTitle}
+          </button>
+        )}
       </div>
 
       {commenting &&

@@ -23,6 +23,9 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  /** `?finding=<id>` — the finding whose card this tab should reveal (set by
+   *  the Smart Diff's finding badges and the PR-list findings popovers). */
+  focusFindingId?: string | null;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -39,6 +42,7 @@ export function FindingsTab({
   cancelMutation,
   repoFullName,
   headSha,
+  focusFindingId = null,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -77,8 +81,17 @@ export function FindingsTab({
   const [severity, setSeverity] = React.useState<Severity | null>(null);
   const counts = React.useMemo(() => countBySeverity(runs.flatMap((r) => r.findings)), [runs]);
   const visibleRuns = React.useMemo(
-    () => (severity ? runs.filter((r) => r.findings.some((f) => f.severity === severity)) : runs),
-    [runs, severity],
+    () =>
+      severity
+        ? runs.filter(
+            (r) =>
+              r.findings.some((f) => f.severity === severity) ||
+              // The run holding a deep-link target always renders, or the
+              // `?finding=` link silently resolves to nothing.
+              (!!focusFindingId && r.findings.some((f) => f.id === focusFindingId)),
+          )
+        : runs,
+    [runs, severity, focusFindingId],
   );
   // The filtered-for level can vanish (run deleted, refetch) — don't strand the
   // user on an empty tab with a chip that no longer renders.
@@ -189,6 +202,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            targetFindingId={focusFindingId}
             severityFilter={severity}
           />
         ))

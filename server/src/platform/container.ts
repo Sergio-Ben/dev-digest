@@ -6,6 +6,7 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  WebFetchClient,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -15,6 +16,7 @@ import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
+import { WebFetchAdapter } from '../adapters/http/web-fetch.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
@@ -44,6 +46,7 @@ export interface ContainerOverrides {
   auth?: AuthProvider;
   github?: GitHubClient;
   git?: GitClient;
+  webFetch?: WebFetchClient;
   codeIndex?: CodeIndex;
   embedder?: Embedder;
   /** Pre-built providers by id (skip key lookup). */
@@ -65,6 +68,7 @@ export class Container {
 
   private _git?: GitClient;
   private _github?: GitHubClient;
+  private _webFetch?: WebFetchClient;
   private _codeIndex?: CodeIndex;
   private _embedder?: Embedder;
   private llmCache = new Map<string, LLMProvider>();
@@ -94,6 +98,17 @@ export class Container {
     if (this.overrides.git) return this.overrides.git;
     this._git ??= new SimpleGitClient(this.config.cloneDir);
     return this._git;
+  }
+
+  /**
+   * SSRF-guarded outbound HTTP. Callers must still honour
+   * `config.externalFetchEnabled` — the flag gates *whether* external URLs are
+   * fetched, the adapter only guards *how*.
+   */
+  get webFetch(): WebFetchClient {
+    if (this.overrides.webFetch) return this.overrides.webFetch;
+    this._webFetch ??= new WebFetchAdapter();
+    return this._webFetch;
   }
 
   get agentsRepo(): AgentsRepository {

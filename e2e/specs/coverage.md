@@ -14,6 +14,7 @@ What is covered, what is not, and why.
 | `diff` | `flows/diff.json` | Diff view renders for the seeded PR |
 | `onboarding` | `flows/onboarding.json` | Onboarding wizard loads and first step renders |
 | `settings` | `flows/settings.json` | Settings page loads, provider selector visible |
+| `smart-diff-finding-nav` | `specs/08-smart-diff-finding-nav.flow.json` | Clicking a Smart Diff line's "View finding" button routes in-app to `?tab=findings&finding=<id>` and reveals that finding's card (the file header badge stays an in-file jump) |
 
 ## What Is Not Covered
 

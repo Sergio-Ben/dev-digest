@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
@@ -8,6 +8,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { IntentService } from '../intent/service.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -24,6 +25,44 @@ export type Logger = {
   error: (obj: unknown, msg?: string) => void;
   debug: (obj: unknown, msg?: string) => void;
 };
+
+/**
+ * Adapt a RunLogger to the pino-shaped `Logger` the IntentService expects, so
+ * the classifier's token-savings line lands in the run's Live Log.
+ *
+ * The two are structurally assignable (TS checks method params bivariantly),
+ * so passing the RunLogger directly TYPECHECKS but silently renders every line
+ * as "[object Object]" — `info(obj, msg)` hits `info(msg, data)`. Flip the
+ * arguments explicitly. RunLogger has no warn/debug, so both fold into info.
+ */
+function asRunLoggerAdapter(runLog: RunLogger): Logger {
+  const write =
+    (kind: 'info' | 'error') =>
+    (obj: unknown, msg?: string): void =>
+      runLog[kind](msg ?? String(obj), msg === undefined ? undefined : obj);
+  const info = write('info');
+  return { info, warn: info, debug: info, error: write('error') };
+}
+
+/**
+ * Render a derived Intent as the untrusted text block injected into each review
+ * prompt. reviewer-core wraps it via `wrapUntrusted('intent', …)` — never
+ * concatenate this into a system prompt.
+ *
+ * The scope-discipline rule rides along in the block text rather than in the
+ * Finding schema: an out-of-scope problem still gets reported, but exactly once
+ * so a large refactor can't drown the in-scope findings.
+ */
+function renderIntentBlock(intent: Intent): string {
+  const bullets = (xs: string[]) => (xs.length ? xs.map((x) => `- ${x}`).join('\n') : '- (none stated)');
+  return [
+    `Intent: ${intent.intent}`,
+    `In scope:\n${bullets(intent.in_scope)}`,
+    `Out of scope:\n${bullets(intent.out_of_scope)}`,
+    'Rule: Do not comment outside this scope. If you spot a serious problem that is ' +
+      'OUT OF SCOPE, emit exactly ONE signal finding for it — not many.',
+  ].join('\n');
+}
 
 // A reduced "Review per file" — same schema as Review (the model returns a small
 // Review per file; we merge findings + take the worst verdict / mean score).
@@ -105,6 +144,35 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Derive the PR's intent ONCE for the whole fan-out — it's an LLM call, and
+    // it does not vary by agent. A stored intent (Overview tab already opened,
+    // or an earlier run) is reused as-is; only a miss pays for a classification.
+    //
+    // Best-effort, exactly like the callers/repoMap enrichment below: any
+    // failure here leaves `intentBlock` undefined and the run proceeds with the
+    // pre-intent prompt. Intent must never be able to fail a review.
+    let intentBlock: string | undefined;
+    try {
+      const stored = await this.repo.getIntent(pull.id);
+      const intent =
+        stored ??
+        (await runLog.step(
+          'Deriving PR intent',
+          () =>
+            new IntentService(this.container, asRunLoggerAdapter(runLog)).computeForRun(
+              workspaceId,
+              pull,
+              repo,
+              diff,
+            ),
+          { kind: 'tool' },
+        ));
+      intentBlock = renderIntentBlock(intent);
+      runLog.info(`intent (${stored ? 'stored' : 'derived'}): ${intent.intent}`);
+    } catch (err) {
+      runLog.info(`intent: unavailable — proceeding without it (${(err as Error).message})`);
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -112,7 +180,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intentBlock);
         logger?.info(
           {
             runId,
@@ -144,6 +212,8 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    /** Pre-rendered intent block, derived once in `executeRuns`; undefined when unavailable. */
+    intentBlock?: string,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -207,6 +277,10 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Derived PR intent + scope-discipline rule. Passed as a prompt PART
+        // (not spliced into the system prompt) so reviewer-core delimiter-wraps
+        // it — it is derived from author-controlled text and stays untrusted.
+        ...(intentBlock ? { intent: intentBlock } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),

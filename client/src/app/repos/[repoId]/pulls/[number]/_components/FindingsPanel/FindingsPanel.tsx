@@ -18,6 +18,7 @@ export function FindingsPanel({
   repoFullName,
   headSha,
   severityFilter = null,
+  targetFindingId = null,
 }: {
   findings: FindingRecord[];
   prId: string;
@@ -25,6 +26,9 @@ export function FindingsPanel({
   headSha?: string | null;
   /** Show only this severity; null = every level (set by SeverityFilterBar). */
   severityFilter?: Severity | null;
+  /** `?finding=<id>` deep-link target (e.g. a Smart Diff finding badge). Its
+   *  card is force-shown even under `hideLow`, expanded and scrolled to. */
+  targetFindingId?: string | null;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
@@ -32,13 +36,26 @@ export function FindingsPanel({
   const [focusIdx, setFocusIdx] = React.useState(0);
 
   const shown = React.useMemo(
-    () => visibleFindings(findings, hideLow, severityFilter),
-    [findings, hideLow, severityFilter],
+    // A deep link must never land on a card the current view filters away —
+    // being sent to an empty panel reads as a broken link.
+    () => visibleFindings(findings, hideLow, severityFilter, targetFindingId),
+    [findings, hideLow, severityFilter, targetFindingId],
   );
   // Clamp at render instead of resetting focusIdx in an effect: `shown` gets a
   // new identity on every accept/dismiss refetch, so an effect would yank the
   // keyboard focus back to the top mid-triage.
   const focus = shown.length ? Math.min(focusIdx, shown.length - 1) : 0;
+
+  // Arriving via `?finding=` also moves the j/k cursor onto that card. Keyed on
+  // the target alone (never on `shown`, whose identity changes on every
+  // refetch) so it doesn't yank focus back mid-triage — see client/INSIGHTS.md.
+  const shownRef = React.useRef(shown);
+  shownRef.current = shown;
+  React.useEffect(() => {
+    if (!targetFindingId) return;
+    const idx = shownRef.current.findIndex((f) => f.id === targetFindingId);
+    if (idx >= 0) setFocusIdx(idx);
+  }, [targetFindingId]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -75,6 +92,7 @@ export function FindingsPanel({
               f={f}
               focused={i === focus}
               defaultExpanded={i === 0}
+              targeted={!!targetFindingId && f.id === targetFindingId}
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}

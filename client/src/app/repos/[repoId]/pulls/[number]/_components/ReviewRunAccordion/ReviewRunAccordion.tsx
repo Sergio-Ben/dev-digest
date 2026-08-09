@@ -31,6 +31,7 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  targetFindingId = null,
   severityFilter = null,
 }: {
   review: ReviewRecord;
@@ -44,8 +45,14 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** `?finding=<id>` deep-link target. Only the run that OWNS that finding
+   *  reacts: it opens, and hands the id down so the card scrolls itself into
+   *  view — the accordion deliberately does not scroll in that case, or it
+   *  would fight the card's own scroll. */
+  targetFindingId?: string | null;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
+  const ownsTarget = !!targetFindingId && review.findings.some((f) => f.id === targetFindingId);
+  const [open, setOpen] = React.useState(defaultOpen || ownsTarget);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
     if (review.run_id && review.run_id === targetRunId) {
@@ -54,6 +61,11 @@ export function ReviewRunAccordion({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetRunId, targetNonce, review.run_id]);
+  // A collapsed run must open when a deep link points inside it — `open` is
+  // plain state, so the initializer above only covers the mount case.
+  React.useEffect(() => {
+    if (ownsTarget) setOpen(true);
+  }, [ownsTarget]);
   // Applying a severity filter reveals what you filtered for: `defaultOpen` is
   // only the initial useState value, so without this a filter can leave a row
   // of collapsed accordions.
@@ -164,6 +176,7 @@ export function ReviewRunAccordion({
             repoFullName={repoFullName}
             headSha={headSha}
             severityFilter={severityFilter}
+            targetFindingId={ownsTarget ? targetFindingId : null}
           />
         </div>
       )}

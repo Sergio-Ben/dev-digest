@@ -62,6 +62,17 @@
     "findings": "{count} finding(s)",
     "blockers": " · {count} blockers"
   },
+  "overview": {
+    "descriptionLabel": "Description"
+  },
+  "intent": {
+    "sectionLabel": "PR Intent",
+    "recompute": "Recompute",
+    "recomputeAriaLabel": "Recompute PR intent",
+    "error": "Could not load the PR intent.",
+    "inScopeLabel": "In scope",
+    "outOfScopeLabel": "Out of scope"
+  },
   "smartDiff": {
     "coreLabel": "Core",
     "wiringLabel": "Wiring",

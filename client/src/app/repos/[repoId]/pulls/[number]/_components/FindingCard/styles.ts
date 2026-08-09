@@ -6,7 +6,11 @@ export const s = {
     focused: boolean,
     sevColor: string,
     muted: boolean,
+    targeted = false,
   ): CSSProperties => ({
+    // Deep-link arrivals scroll this card into view — keep it clear of the
+    // sticky header rather than flush against the viewport top.
+    scrollMarginTop: 80,
     borderRadius: 8,
     // All-longhand (never mix `border` shorthand with `borderLeft` — React warns
     // about updating shorthand + non-shorthand on the same rerender).
@@ -23,7 +27,13 @@ export const s = {
     overflow: "hidden",
     opacity: muted ? 0.6 : 1,
     transition: "opacity .2s, border-color .12s, box-shadow .12s",
-    boxShadow: focused ? "0 0 0 1px " + sevColor : "none",
+    // A deep-link target gets a stronger ring than plain keyboard focus, so
+    // the card you were sent to is unmistakable on arrival.
+    boxShadow: targeted
+      ? `0 0 0 2px ${sevColor}, 0 0 0 6px color-mix(in srgb, ${sevColor} 22%, transparent)`
+      : focused
+        ? "0 0 0 1px " + sevColor
+        : "none",
   }),
   header: {
     display: "flex",

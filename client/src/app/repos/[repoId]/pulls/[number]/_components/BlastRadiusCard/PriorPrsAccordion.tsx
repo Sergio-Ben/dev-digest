@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
+import { Icon } from "@devdigest/ui";
 import type { PriorPr } from "@devdigest/shared";
 
 interface PriorPrsAccordionProps {
@@ -15,19 +16,30 @@ export function PriorPrsAccordion({ priorPrs }: PriorPrsAccordionProps) {
   if (priorPrs.length === 0) return null;
 
   return (
-    <div className="border-t border-[var(--border)] pt-2">
+    <div className="shrink-0 rounded-lg border border-[var(--border)]">
       <button
+        type="button"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="bg-transparent border-none cursor-pointer p-0 w-full flex items-center justify-between text-xs text-[var(--text-muted)]"
+        className="bg-transparent border-none cursor-pointer w-full flex items-center gap-2 px-3 py-2.5 text-left"
       >
-        <span>⏱ {t("priorPrs")}</span>
-        <span className="font-semibold">
-          {priorPrs.length} {open ? "▲" : "▼"}
+        <Icon.History size={13} className="shrink-0 text-[var(--text-muted)]" />
+        <span className="text-xs font-semibold text-[var(--text-primary)]">
+          {t("priorPrs")}
         </span>
+        <span className="rounded bg-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+          {priorPrs.length}
+        </span>
+        <Icon.ChevronDown
+          size={14}
+          className={`ml-auto shrink-0 text-[var(--text-muted)] transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
       </button>
 
       {open && (
-        <div className="flex flex-col gap-1 mt-1.5 pl-1">
+        <div className="flex flex-col gap-1 px-3 pb-2.5 pt-0.5">
           {priorPrs.map((pr) => (
             <div
               key={pr.id}

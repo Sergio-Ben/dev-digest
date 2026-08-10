@@ -12,14 +12,8 @@ import type { SmartDiff, SmartDiffFile } from "@devdigest/shared";
 import type { PrFile } from "@/lib/types";
 import { FileCard } from "@/components/diff-viewer/FileCard";
 import type { DiffCommentApi } from "@/components/diff-viewer";
-import {
-  ROLE_META,
-  SCROLL_BEHAVIOR,
-  SCROLL_BLOCK,
-  SCROLL_RETRY_MS,
-  SCROLL_MAX_ATTEMPTS,
-  FINDING_FLASH_MS,
-} from "./constants";
+import { ROLE_META } from "./constants";
+import { lineAnchorId, scrollToDiffLine } from "@/components/diff-viewer/anchors";
 import { shouldStartOpen, fileAnchorId, findingIdAtLine, indexFilesByPath } from "./helpers";
 import { s } from "./styles";
 
@@ -28,31 +22,20 @@ interface SmartDiffViewerProps {
   files: PrFile[];
   commenting?: DiffCommentApi;
   onOpenFinding?: (findingId: string) => void;
+  /** `?file=&line=` deep-link target (e.g. a Blast Radius caller): expand that
+   *  file on arrival and scroll to the line. */
+  focusFile?: string | null;
+  focusLine?: number | null;
 }
 
-/** Scroll to (and briefly flash) a file's first finding line, retrying a few
- *  times since the line only exists in the DOM once the file card commits
- *  its just-opened state. */
-function scrollToFinding(anchorId: string, attempt = 0) {
-  const el = document.getElementById(anchorId);
-  if (el) {
-    el.scrollIntoView({ behavior: SCROLL_BEHAVIOR, block: SCROLL_BLOCK });
-    const prevBg = el.style.backgroundColor;
-    const prevTransition = el.style.transition;
-    el.style.transition = "background-color .2s";
-    el.style.backgroundColor = "var(--warn-bg)";
-    window.setTimeout(() => {
-      el.style.backgroundColor = prevBg;
-      el.style.transition = prevTransition;
-    }, FINDING_FLASH_MS);
-    return;
-  }
-  if (attempt < SCROLL_MAX_ATTEMPTS) {
-    window.setTimeout(() => scrollToFinding(anchorId, attempt + 1), SCROLL_RETRY_MS);
-  }
-}
-
-export function SmartDiffViewer({ smartDiff, files, commenting, onOpenFinding }: SmartDiffViewerProps) {
+export function SmartDiffViewer({
+  smartDiff,
+  files,
+  commenting,
+  onOpenFinding,
+  focusFile,
+  focusLine,
+}: SmartDiffViewerProps) {
   const t = useTranslations("brief");
   const filesByPath = React.useMemo(() => indexFilesByPath(files), [files]);
 
@@ -91,8 +74,22 @@ export function SmartDiffViewer({ smartDiff, files, commenting, onOpenFinding }:
     const line = file.finding_lines[0];
     if (line == null) return;
     setOpenMap((prev) => ({ ...prev, [file.path]: true }));
-    window.setTimeout(() => scrollToFinding(`${fileAnchorId(file.path)}-L${line}`), 0);
+    window.setTimeout(() => scrollToDiffLine(lineAnchorId(file.path, line)), 0);
   };
+
+  // Arriving with `?file=&line=`: expand the target file and scroll to it. Keyed
+  // on the target itself so a second jump to the SAME line still fires (the
+  // user can click the caller again after scrolling away) but a re-render or a
+  // Smart Diff refetch doesn't re-yank the viewport.
+  React.useEffect(() => {
+    if (!focusFile || focusLine == null) return;
+    setOpenMap((prev) => (prev[focusFile] ? prev : { ...prev, [focusFile]: true }));
+    const id = window.setTimeout(
+      () => scrollToDiffLine(lineAnchorId(focusFile, focusLine)),
+      0,
+    );
+    return () => window.clearTimeout(id);
+  }, [focusFile, focusLine]);
 
   const openFinding = (file: SmartDiffFile, findingId: string | undefined) => {
     if (onOpenFinding && findingId) onOpenFinding(findingId);

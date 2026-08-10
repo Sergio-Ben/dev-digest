@@ -97,7 +97,7 @@ describe('BlastService.getForPr', () => {
       withLlm: true,
     });
 
-    const result = await svc.getForPr('pr1', 'ws1');
+    const result = await svc.getForPr('pr1', 'ws1', { summary: true });
 
     // Conforms to the Zod contract.
     expect(() => BlastRadiusResult.parse(result)).not.toThrow();
@@ -138,9 +138,27 @@ describe('BlastService.getForPr', () => {
       changedFiles: ['src/middleware/ratelimit.ts'],
       withLlm: false,
     });
-    const result = await svc.getForPr('pr1', 'ws1');
+    const result = await svc.getForPr('pr1', 'ws1', { summary: true });
 
     expect(() => BlastRadiusResult.parse(result)).not.toThrow();
+    expect(result.summary).toBeUndefined();
+    expect(result.changedSymbols).toHaveLength(1);
+  });
+
+  it('never touches the LLM on the default (no-summary) path', async () => {
+    let llmCalls = 0;
+    const svc = buildService({ changedFiles: ['src/middleware/ratelimit.ts'] });
+    // Any access to container.llm on the default path is a contract violation:
+    // the blast map is built purely from repo-intel reads.
+    (svc as unknown as { container: { llm: unknown } }).container.llm =
+      async () => {
+        llmCalls += 1;
+        return { complete: async () => ({ text: 'nope' }) };
+      };
+
+    const result = await svc.getForPr('pr1', 'ws1');
+
+    expect(llmCalls).toBe(0);
     expect(result.summary).toBeUndefined();
     expect(result.changedSymbols).toHaveLength(1);
   });

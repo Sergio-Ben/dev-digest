@@ -14,6 +14,7 @@ export class BlastService {
   async getForPr(
     prId: string,
     workspaceId: string,
+    opts: { summary?: boolean } = {},
   ): Promise<BlastRadiusResult> {
     const { pr, repo } = await this.repo.resolvePrAndRepo(prId, workspaceId);
     if (!pr) throw new NotFoundError("Pull request not found");
@@ -58,32 +59,37 @@ export class BlastService {
       }),
     );
 
+    // Exactly one LLM call, and only when the caller asked for it — the map
+    // above is built entirely from repo-intel reads.
     let summary: string | undefined;
-    try {
-      const { provider, model } = await resolveFeatureModel(
-        this.container,
-        workspaceId,
-        "review_intent",
-      );
-      const llm = await this.container.llm(provider as Provider);
-      const result = await llm.complete({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: "You summarize code impact maps in one concise sentence.",
-          },
-          {
-            role: "user",
-            content: `Blast radius: ${blastResult.changedSymbols.map((s) => s.name).join(", ")} changed. ${blastResult.callers.length} callers, ${blastResult.impactedEndpoints.length} endpoints affected. Summarize in one sentence.`,
-          },
-        ],
-        maxTokens: 150,
-        temperature: 0.2,
-      });
-      summary = result.text.trim();
-    } catch {
-      // LLM failure must not block the response
+    if (opts.summary) {
+      try {
+        const { provider, model } = await resolveFeatureModel(
+          this.container,
+          workspaceId,
+          "review_intent",
+        );
+        const llm = await this.container.llm(provider as Provider);
+        const result = await llm.complete({
+          model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You summarize code impact maps in one concise sentence.",
+            },
+            {
+              role: "user",
+              content: `Blast radius: ${blastResult.changedSymbols.map((s) => s.name).join(", ")} changed. ${blastResult.callers.length} callers, ${blastResult.impactedEndpoints.length} endpoints affected. Summarize in one sentence.`,
+            },
+          ],
+          maxTokens: 150,
+          temperature: 0.2,
+        });
+        summary = result.text.trim();
+      } catch {
+        // LLM failure must not block the response
+      }
     }
 
     return { ...blastResult, priorPrs, summary };

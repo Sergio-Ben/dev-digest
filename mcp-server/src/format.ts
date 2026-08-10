@@ -12,7 +12,12 @@
  * start_line as "line" so callers get a clean file:line signal.
  */
 
-import type { Finding, Agent, ConventionCandidate } from '@devdigest/shared';
+import type {
+  Finding,
+  Agent,
+  ConventionCandidate,
+  BlastRadiusResult,
+} from '@devdigest/shared';
 
 // ---------------------------------------------------------------------------
 // MCP tool result envelope
@@ -100,4 +105,56 @@ export function compactConvention(c: ConventionCandidate): CompactConvention {
     confidence: c.confidence,
     accepted: c.accepted,
   };
+}
+
+/**
+ * Compact blast radius — the wire shape is a flat symbol list plus a flat
+ * caller list plus a per-file facts map, which a reader has to re-join itself.
+ * This nests callers under the symbol they reach (the question actually being
+ * asked: "who does this change affect?"), renders each caller as `file:line`,
+ * and drops the pagerank floats and the `factsByFile` map, whose endpoints are
+ * already summarised in `impactedEndpoints`.
+ *
+ * `degraded` / `reason` are preserved verbatim — an incomplete index is a fact
+ * the caller has to see, not something to smooth over.
+ */
+export type CompactBlastSymbol = {
+  symbol: string;
+  file: string;
+  kind: string;
+  callers: string[];
+};
+
+export type CompactBlastRadius = {
+  changedSymbols: CompactBlastSymbol[];
+  impactedEndpoints: string[];
+  priorPrs?: Array<{ number: number; title: string; status: string }>;
+  degraded?: boolean;
+  reason?: BlastRadiusResult['reason'];
+  summary?: string;
+};
+
+export function compactBlastRadius(b: BlastRadiusResult): CompactBlastRadius {
+  const out: CompactBlastRadius = {
+    changedSymbols: b.changedSymbols.map((s) => ({
+      symbol: s.name,
+      file: s.file,
+      kind: s.kind,
+      callers: b.callers
+        .filter((c) => c.viaSymbol === s.name)
+        .map((c) => `${c.file}:${c.line}`),
+    })),
+    impactedEndpoints: b.impactedEndpoints,
+  };
+  if (b.priorPrs?.length) {
+    out.priorPrs = b.priorPrs.map((p) => ({
+      number: p.number,
+      title: p.title,
+      status: p.status,
+    }));
+  }
+  if (b.degraded !== undefined) out.degraded = b.degraded;
+  if (b.reason !== undefined) out.reason = b.reason;
+  if (b.summary !== undefined) out.summary = b.summary;
+  return out;
 }

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { BlastRadiusResult } from "@devdigest/shared";
-import { buildCronSet, buildSymbolRows, endpointPillClass } from "./helpers";
-import { buildGraphData } from "./BlastGraph";
+import { buildCronSet, buildSymbolRows, distinctSymbolNames } from "./helpers";
 
 const DATA: BlastRadiusResult = {
   changedSymbols: [
@@ -41,29 +40,62 @@ describe("buildSymbolRows", () => {
     expect(row.endpoints).toEqual(["POST /webhooks"]);
     expect(row.crons).toEqual([]);
   });
+
+  it("drops changed symbols that nothing calls", () => {
+    const rows = buildSymbolRows({
+      ...DATA,
+      changedSymbols: [
+        ...DATA.changedSymbols,
+        { file: "src/middleware/ratelimit.ts", name: "bucketKey", kind: "function" },
+      ],
+    });
+
+    // `bucketKey` has no caller row, so it never reaches the tree — but the
+    // card can still recover the count from changedSymbols.length - rows.length.
+    expect(rows.map((r) => r.name)).toEqual(["rateLimit"]);
+  });
+
+  it("returns no rows when nothing in the change set has callers", () => {
+    expect(buildSymbolRows({ ...DATA, callers: [] })).toEqual([]);
+  });
+
+  it("emits one row per NAME when two changed files export the same symbol", () => {
+    // `viaSymbol` is a bare name, so both `update`s would claim the same caller
+    // rows — identical twins that collide on the React key and on `openSymbol`.
+    const rows = buildSymbolRows({
+      ...DATA,
+      changedSymbols: [
+        { file: "src/db/users.ts", name: "update", kind: "function" },
+        { file: "src/db/orgs.ts", name: "update", kind: "function" },
+      ],
+      callers: [
+        { file: "src/api/me.ts", symbol: "patchMe", viaSymbol: "update", line: 7, rank: 1 },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.file).toBe("src/db/users.ts"); // first wins
+  });
+});
+
+describe("distinctSymbolNames", () => {
+  it("counts names, not entries, so duplicates aren't reported as hidden", () => {
+    expect(
+      distinctSymbolNames({
+        ...DATA,
+        changedSymbols: [
+          { file: "src/db/users.ts", name: "update", kind: "function" },
+          { file: "src/db/orgs.ts", name: "update", kind: "function" },
+          { file: "src/db/orgs.ts", name: "remove", kind: "function" },
+        ],
+      }),
+    ).toBe(2);
+  });
 });
 
 describe("buildCronSet", () => {
   it("collects unique crons from factsByFile", () => {
     expect([...buildCronSet(DATA.factsByFile)]).toEqual(["0 * * * *"]);
     expect(buildCronSet(undefined).size).toBe(0);
-  });
-});
-
-describe("buildGraphData", () => {
-  it("builds symbol/caller/endpoint nodes and links", () => {
-    const { nodes, links } = buildGraphData(DATA);
-    const kinds = nodes.map((n) => n.kind).sort();
-    expect(kinds).toEqual(["caller", "endpoint", "symbol"]);
-    // symbol→caller and symbol→endpoint links.
-    expect(links).toHaveLength(2);
-  });
-});
-
-describe("endpointPillClass", () => {
-  it("colors pills by HTTP method", () => {
-    expect(endpointPillClass("GET /users")).toContain("green");
-    expect(endpointPillClass("DELETE /x")).toContain("red");
-    expect(endpointPillClass("weird")).toContain("indigo");
   });
 });

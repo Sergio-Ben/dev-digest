@@ -28,17 +28,6 @@ export const ROLE_META: Record<SmartDiffRole, { label: string; description: stri
  *  explicit acceptance criterion. */
 export const DEFAULT_COLLAPSED_ROLES: SmartDiffRole[] = ["boilerplate"];
 
-/** `scrollIntoView` options used when jumping to a clicked finding. */
-export const SCROLL_BEHAVIOR: ScrollBehavior = "smooth";
-export const SCROLL_BLOCK: ScrollLogicalPosition = "center";
-
-/** Retry interval (ms) while waiting for a just-expanded file's line to
- *  mount before we can scroll to it. */
-export const SCROLL_RETRY_MS = 50;
-
-/** Give up finding the anchor after this many retries (defensive — avoids an
- *  infinite retry loop if the line never mounts). */
-export const SCROLL_MAX_ATTEMPTS = 20;
-
-/** How long a jumped-to line keeps its highlight flash. */
-export const FINDING_FLASH_MS = 1500;
+/* Scroll/anchor constants moved to `@/components/diff-viewer/anchors` — the
+   Blast Radius card jumps to diff lines too, and two copies of the id scheme
+   would silently drift apart. */

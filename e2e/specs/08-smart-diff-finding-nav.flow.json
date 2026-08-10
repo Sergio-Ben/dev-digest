@@ -1,0 +1,19 @@
+{
+  "name": "Smart Diff 'View finding' routes to that finding's card",
+  "description": "From PR #482's Files changed tab (Smart order), click the per-line 'View finding' button on a flagged line and confirm it navigates IN-APP to the Agent-runs tab with ?finding=<id> and reveals that finding's card — not GitHub, not a popup. (The file header's 'N finding' badge is deliberately NOT a route: it only expands that file card and scrolls to its flagged line.) The first Core-logic file is src/api/users.ts, whose seeded finding is 'N+1 query in user list endpoint'; its card sorts second (below the CRITICAL one) so it is NOT expanded by default — seeing its rationale proves the deep link targeted THAT card. Read-only seeded data (no model call). Assumes a freshly-seeded DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Files changed"], "label": "switch to the Files changed tab" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active in the URL" },
+    { "cmd": ["wait", "--text", "src/api/users.ts"], "label": "Smart order lists the core file" },
+    { "cmd": ["find", "role", "button", "click", "--name", "View finding"], "label": "click the flagged line's 'View finding' button" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "routed to the Agent-runs tab (in-app, same route)" },
+    { "cmd": ["wait", "--url", "finding="], "label": "the clicked finding's id is in the URL (ids are DB-generated per seed, so only the param is asserted)" },
+    { "cmd": ["wait", "--text", "N+1 query in user list endpoint"], "label": "that finding's card is revealed" },
+    { "cmd": ["wait", "--text", "Loop issues one query per user"], "label": "the card arrives expanded (its rationale is readable)" }
+  ]
+}

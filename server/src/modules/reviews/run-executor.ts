@@ -1,20 +1,32 @@
-import type { Container } from '../../platform/container.js';
-import type { Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
-import { RunLogger } from '../../platform/run-logger.js';
-import * as schema from '../../db/schema.js';
-import type { AgentRow } from '../../db/rows.js';
-import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
-import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
-import { loadDiff } from './diff-loader.js';
-import { IntentService } from '../intent/service.js';
+import type { Container } from "../../platform/container.js";
+import type {
+  Provider,
+  Review,
+  RunTrace,
+  UnifiedDiff,
+} from "@devdigest/shared";
+import { reviewPullRequest, countBlockers } from "@devdigest/reviewer-core";
+import { RunLogger } from "../../platform/run-logger.js";
+import * as schema from "../../db/schema.js";
+import type { AgentRow } from "../../db/rows.js";
+import type {
+  ReviewRepository,
+  FindingRow,
+  PullRow,
+  ReviewRow,
+} from "./repository.js";
+import { REVIEW_STRATEGY } from "./constants.js";
+import { taskLine } from "./helpers.js";
+import { loadDiff } from "./diff-loader.js";
+import { IntentService } from "../intent/service.js";
+import { resolveSpecPaths } from "../project-context/injection.js";
+import { readDocument } from "../project-context/documents.js";
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
   constructor() {
-    super('Run cancelled');
-    this.name = 'RunCancelledError';
+    super("Run cancelled");
+    this.name = "RunCancelledError";
   }
 }
 
@@ -25,44 +37,6 @@ export type Logger = {
   error: (obj: unknown, msg?: string) => void;
   debug: (obj: unknown, msg?: string) => void;
 };
-
-/**
- * Adapt a RunLogger to the pino-shaped `Logger` the IntentService expects, so
- * the classifier's token-savings line lands in the run's Live Log.
- *
- * The two are structurally assignable (TS checks method params bivariantly),
- * so passing the RunLogger directly TYPECHECKS but silently renders every line
- * as "[object Object]" — `info(obj, msg)` hits `info(msg, data)`. Flip the
- * arguments explicitly. RunLogger has no warn/debug, so both fold into info.
- */
-function asRunLoggerAdapter(runLog: RunLogger): Logger {
-  const write =
-    (kind: 'info' | 'error') =>
-    (obj: unknown, msg?: string): void =>
-      runLog[kind](msg ?? String(obj), msg === undefined ? undefined : obj);
-  const info = write('info');
-  return { info, warn: info, debug: info, error: write('error') };
-}
-
-/**
- * Render a derived Intent as the untrusted text block injected into each review
- * prompt. reviewer-core wraps it via `wrapUntrusted('intent', …)` — never
- * concatenate this into a system prompt.
- *
- * The scope-discipline rule rides along in the block text rather than in the
- * Finding schema: an out-of-scope problem still gets reported, but exactly once
- * so a large refactor can't drown the in-scope findings.
- */
-function renderIntentBlock(intent: Intent): string {
-  const bullets = (xs: string[]) => (xs.length ? xs.map((x) => `- ${x}`).join('\n') : '- (none stated)');
-  return [
-    `Intent: ${intent.intent}`,
-    `In scope:\n${bullets(intent.in_scope)}`,
-    `Out of scope:\n${bullets(intent.out_of_scope)}`,
-    'Rule: Do not comment outside this scope. If you spot a serious problem that is ' +
-      'OUT OF SCOPE, emit exactly ONE signal finding for it — not many.',
-  ].join('\n');
-}
 
 // A reduced "Review per file" — same schema as Review (the model returns a small
 // Review per file; we merge findings + take the worst verdict / mean score).
@@ -83,7 +57,7 @@ export class ReviewRunExecutor {
   constructor(
     private container: Container,
     private repo: ReviewRepository,
-    private agents: Container['agentsRepo'],
+    private agents: Container["agentsRepo"],
   ) {}
 
   /**
@@ -115,18 +89,21 @@ export class ReviewRunExecutor {
       for (const { runId, agent } of jobs) {
         await this.repo
           .completeAgentRun(runId, {
-            status: 'failed',
+            status: "failed",
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
             costUsd: null,
             findingsCount: 0,
-            grounding: '0/0 passed',
+            grounding: "0/0 passed",
             error: msg,
           })
           .catch(() => undefined);
         await this.repo
-          .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
+          .saveRunTrace(
+            runId,
+            this.traceFromBuffer(runId, pull, agent, "0/0 passed"),
+          )
           .catch(() => undefined);
         this.container.runBus.complete(runId);
       }
@@ -134,53 +111,91 @@ export class ReviewRunExecutor {
 
     let diff: UnifiedDiff;
     try {
-      diff = await runLog.step('Loading PR diff', () => loadDiff(this.container, this.repo, workspaceId, pull, repo), {
-        kind: 'tool',
-      });
+      diff = await runLog.step(
+        "Loading PR diff",
+        () => loadDiff(this.container, this.repo, workspaceId, pull, repo),
+        {
+          kind: "tool",
+        },
+      );
     } catch (err) {
       runLog.error(`Failed to load PR diff: ${(err as Error).message}`);
       await failAll(`Failed to load PR diff: ${(err as Error).message}`);
       return;
     }
-    runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
+    runLog.info(
+      `Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`,
+    );
 
-    // Derive the PR's intent ONCE for the whole fan-out — it's an LLM call, and
-    // it does not vary by agent. A stored intent (Overview tab already opened,
-    // or an earlier run) is reused as-is; only a miss pays for a classification.
-    //
-    // Best-effort, exactly like the callers/repoMap enrichment below: any
-    // failure here leaves `intentBlock` undefined and the run proceeds with the
-    // pre-intent prompt. Intent must never be able to fail a review.
+    // Compute intent ONCE per executeRuns — before the per-agent loop.
+    // Best-effort: a failure here must NEVER fail the review run.
     let intentBlock: string | undefined;
     try {
-      const stored = await this.repo.getIntent(pull.id);
-      const intent =
-        stored ??
-        (await runLog.step(
-          'Deriving PR intent',
-          () =>
-            new IntentService(this.container, asRunLoggerAdapter(runLog)).computeForRun(
-              workspaceId,
-              pull,
-              repo,
-              diff,
-            ),
-          { kind: 'tool' },
-        ));
-      intentBlock = renderIntentBlock(intent);
-      runLog.info(`intent (${stored ? 'stored' : 'derived'}): ${intent.intent}`);
+      // Prefer the stored intent (avoids an LLM call when already computed).
+      let intent = await this.repo.getIntent(pull.id);
+      if (!intent) {
+        // Pass the run's pino logger so the reference resolver + classifier
+        // emit which specs were resolved + the assembled prompt (server logs).
+        intent = await new IntentService(this.container, logger).computeForRun(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+        );
+        runLog.info(
+          "intent: computed and stored for PR",
+          { prId: pull.id, intent: intent.intent },
+        );
+      } else {
+        runLog.info(
+          "intent: loaded from store (no LLM call)",
+          { prId: pull.id, intent: intent.intent },
+        );
+      }
+
+      // Render the intent into the block injected into each agent prompt.
+      const scopeLines = (label: string, items: string[]) =>
+        items.length > 0
+          ? `${label}:\n${items.map((i) => `- ${i}`).join("\n")}`
+          : "";
+      const inScopeSection = scopeLines("In scope", intent.in_scope);
+      const outScopeSection = scopeLines("Out of scope", intent.out_of_scope);
+      intentBlock = [
+        `Intent: ${intent.intent}`,
+        ...(inScopeSection ? [inScopeSection] : []),
+        ...(outScopeSection ? [outScopeSection] : []),
+        "Rule: Do not comment outside this scope. If you spot a serious problem that is OUT OF SCOPE, emit exactly ONE signal finding for it — not many.",
+      ].join("\n");
     } catch (err) {
-      runLog.info(`intent: unavailable — proceeding without it (${(err as Error).message})`);
+      runLog.info(
+        `intent: computation failed — continuing without intent block (${(err as Error).message})`,
+      );
+      // intentBlock remains undefined; reviewPullRequest proceeds without it.
     }
 
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
-        { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
+        {
+          runId,
+          agent: agent.name,
+          provider: agent.provider,
+          model: agent.model,
+          prId: pull.id,
+        },
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intentBlock);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          agent,
+          runId,
+          runLog,
+          intentBlock,
+        );
         logger?.info(
           {
             runId,
@@ -195,9 +210,14 @@ export class ReviewRunExecutor {
         // runOneAgent already persisted the failure/cancel (status + error +
         // trace) and completed the bus; here we only log at the run level.
         const cancelled = err instanceof RunCancelledError;
-        logger?.[cancelled ? 'info' : 'error'](
-          { runId, agent: agent.name, err: (err as Error).message, durationMs: Date.now() - agentStart },
-          `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
+        logger?.[cancelled ? "info" : "error"](
+          {
+            runId,
+            agent: agent.name,
+            err: (err as Error).message,
+            durationMs: Date.now() - agentStart,
+          },
+          `review: agent "${agent.name}" ${cancelled ? "cancelled" : "failed"}`,
         );
       }
     }
@@ -212,7 +232,6 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
-    /** Pre-rendered intent block, derived once in `executeRuns`; undefined when unavailable. */
     intentBlock?: string,
   ): Promise<RunOutcome> {
     const start = Date.now();
@@ -221,7 +240,15 @@ export class ReviewRunExecutor {
     // (built from the buffer) includes them too.
     const runLog = parentLog.forRun(runId, { agent: agent.name });
 
-    runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
+    runLog.info(
+      `Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`,
+    );
+
+    // T10 — spec injection bookkeeping. Declared before the try block so the
+    // failure/cancel catch can include them in the trace even when the error
+    // occurs before or during the spec-read phase.
+    let readPaths: string[] = [];
+    let missing: string[] = [];
 
     try {
       // Resolve the agent's LLM provider. (container.llm throws if the provider
@@ -229,7 +256,7 @@ export class ReviewRunExecutor {
       const llm = await runLog.step(
         `Resolving ${agent.provider} provider`,
         () => this.container.llm(agent.provider as Provider),
-        { kind: 'tool' },
+        { kind: "tool" },
       );
 
       // Per-agent repo-intel toggle (Agent editor). When an agent opts out we
@@ -237,7 +264,10 @@ export class ReviewRunExecutor {
       // repo-intel-off baseline — independent of the global REPO_INTEL_ENABLED
       // flag, which still gates the facade internally.
       const repoIntelOn = agent.repoIntel !== false;
-      if (!repoIntelOn) runLog.info('Repo intel disabled for this agent — skipping context enrichment');
+      if (!repoIntelOn)
+        runLog.info(
+          "Repo intel disabled for this agent — skipping context enrichment",
+        );
 
       // T1.3 — callers-in-prompt. Best-effort: when repo-intel is off the facade
       // returns []; we omit the section and behavior is identical to the
@@ -249,16 +279,75 @@ export class ReviewRunExecutor {
       // T3 — repo skeleton + "changed files are top-5%" framing. Both best-
       // effort: when repo-intel is off / unindexed the facade degrades and the
       // prompt is identical to the pre-T3 shape.
-      const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
-      const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
+      const repoMap = repoIntelOn
+        ? await this.buildRepoMapDigest(pull.repoId, runLog)
+        : undefined;
+      const rankNote = repoIntelOn
+        ? await this.buildRankNote(pull.repoId, diff, runLog)
+        : "";
 
       const task = taskLine(pull) + rankNote;
 
-      // Fetch enabled skills linked to this agent (in order). Their bodies are
-      // injected into the prompt as "## Skills / rules" by assemblePrompt.
-      const linked = await this.container.agentsRepo.linkedSkills(agent.id);
-      const skillBodies = linked.filter((l) => l.skill.enabled).map((l) => l.skill.body);
-      if (skillBodies.length) runLog.info(`skills: ${skillBodies.length} enabled skill(s) attached`);
+      // ---- Skills: load linked + enabled skill bodies -------------------------
+      // linkedSkills() returns rows ordered by agent_skills.order (ASC), so the
+      // array preserves the order the user set in the Skills editor tab.
+      const linkedSkills = await this.container.agentsRepo.linkedSkills(
+        agent.id,
+      );
+      const skillBodies = linkedSkills
+        .filter((s) => s.skill.enabled)
+        .map((s) => {
+          // Skills from untrusted external sources (URL / community) are
+          // delimiter-wrapped so their body cannot act as injected instructions.
+          const untrustedSources = ["imported_url", "community"];
+          if (untrustedSources.includes(s.skill.source)) {
+            return `<untrusted source="skill:${s.skill.source}">\n${s.skill.body.replaceAll("</untrusted>", "<\\/untrusted>")}\n</untrusted>`;
+          }
+          return s.skill.body;
+        });
+      if (skillBodies.length > 0) {
+        runLog.info(
+          `Skills: ${skillBodies.length} skill(s) attached to prompt`,
+        );
+      }
+
+      // ---- T10 — Project-context spec injection --------------------------------
+      // Snapshot agent + enabled-skill attached paths ONCE at run start (AC-18).
+      // No new LLM/embedding/network call is made here (AC-24).
+      // reviewer-core wraps each spec with wrapUntrusted + INJECTION_GUARD —
+      // pass RAW texts; do NOT wrap here (AC-20/AC-29 already satisfied).
+      const loadedSkillsForSpec = linkedSkills
+        .filter((s) => s.skill.enabled)
+        .map((s) => ({ paths: s.skill.attachedDocPaths ?? [] }));
+      const specPaths = resolveSpecPaths({
+        agentPaths: agent.attachedDocPaths ?? [],
+        loadedSkills: loadedSkillsForSpec,
+      });
+
+      const specTexts: string[] = [];
+      // readPaths and missing are declared above the try block so the catch
+      // can include them in the failure trace.
+      const repoRef = { owner: repo.owner, name: repo.name };
+      for (const p of specPaths) {
+        try {
+          const text = await readDocument(this.container.git, repoRef, p);
+          specTexts.push(text);
+          readPaths.push(p);
+        } catch {
+          // Fail-soft (AC-22): stale/unreadable/guard-refused/clone-absent paths
+          // are recorded in missing and do NOT fail the run.
+          missing.push(p);
+        }
+      }
+      if (readPaths.length > 0) {
+        runLog.info(
+          `Project context: ${readPaths.length} spec(s) injected, ${missing.length} missing`,
+        );
+      } else if (missing.length > 0) {
+        runLog.info(
+          `Project context: 0 spec(s) injected, ${missing.length} missing (all paths unreadable)`,
+        );
+      }
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -272,24 +361,31 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // Skills: resolved bodies (ordered). assemblePrompt renders them as
+        // "## Skills / rules" section in the user message. Empty → section omitted.
+        ...(skillBodies.length > 0 ? { skills: skillBodies } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
-        // Derived PR intent + scope-discipline rule. Passed as a prompt PART
-        // (not spliced into the system prompt) so reviewer-core delimiter-wraps
-        // it — it is derived from author-controlled text and stays untrusted.
-        ...(intentBlock ? { intent: intentBlock } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // T6 — intent block (computed once per run, shared across agents).
+        // reviewer-core's assemblePrompt wraps it via wrapUntrusted (T1).
+        // Omitted when intent computation failed (best-effort).
+        ...(intentBlock ? { intent: intentBlock } : {}),
+        // T10 — project-context specs. reviewer-core wraps each text with
+        // wrapUntrusted('spec-N') + INJECTION_GUARD; RAW texts passed here.
+        // Omitted when specPaths is empty or all reads failed (AC-23).
+        ...(specTexts.length > 0 ? { specs: specTexts } : {}),
         task,
-        ...(skillBodies.length ? { skills: skillBodies } : {}),
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
         checkCancelled: () => {
-          if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
+          if (this.container.runBus.isCancelled(runId))
+            throw new RunCancelledError();
         },
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
@@ -302,14 +398,19 @@ export class ReviewRunExecutor {
         prId: pull.id,
         agentId: agent.id,
         runId,
-        kind: 'review',
+        kind: "review",
         verdict: outcome.review.verdict,
         summary: outcome.review.summary,
         score: outcome.review.score,
         model: agent.model,
       });
-      const findingRows = await this.repo.insertFindings(review.id, keptFindings);
-      runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
+      const findingRows = await this.repo.insertFindings(
+        review.id,
+        keptFindings,
+      );
+      runLog.result(
+        `Persisted review ${review.id} with ${findingRows.length} finding(s)`,
+      );
 
       // Mark the commit this review ran against so the PR list can tell
       // reviewed / needs-review (head moved) / stale apart.
@@ -323,7 +424,7 @@ export class ReviewRunExecutor {
 
       // ---- Observability: agent_runs + ONE run_traces document --------------
       await this.repo.completeAgentRun(runId, {
-        status: 'done',
+        status: "done",
         durationMs,
         tokensIn,
         tokensOut,
@@ -342,7 +443,7 @@ export class ReviewRunExecutor {
           provider: agent.provider,
           model: agent.model,
           pr: pull.number,
-          source: 'local',
+          source: "local",
         },
         stats: {
           duration_ms: durationMs,
@@ -354,19 +455,21 @@ export class ReviewRunExecutor {
         },
         prompt_assembly: outcome.assembly,
         tool_calls: outcome.chunks.map((c) => ({
-          tool: 'review_file',
+          tool: "review_file",
           args: c.label,
           meta: outcome.mode,
           ms: Math.round(durationMs / Math.max(outcome.chunks.length, 1)),
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        // T10 — set actual read paths (AC-25/AC-26).
+        specs_read: readPaths,
+        ...(missing.length > 0 ? { specs_missing: missing } : {}),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
       };
-      runLog.info('Run complete; trace persisted');
+      runLog.info("Run complete; trace persisted");
       await this.repo.saveRunTrace(runId, trace);
       this.container.runBus.complete(runId);
 
@@ -375,9 +478,9 @@ export class ReviewRunExecutor {
       // Failure/cancel: persist status + the error text + the log-so-far so the
       // run (and WHY it failed) is visible on the UI after a reload.
       const cancelled = err instanceof RunCancelledError;
-      const status = cancelled ? 'cancelled' : 'failed';
-      const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
-      runLog.error(cancelled ? 'Run cancelled by user' : `Run failed: ${msg}`);
+      const status = cancelled ? "cancelled" : "failed";
+      const msg = cancelled ? "Cancelled by user" : (err as Error).message;
+      runLog.error(cancelled ? "Run cancelled by user" : `Run failed: ${msg}`);
       await this.repo
         .completeAgentRun(runId, {
           status,
@@ -386,12 +489,23 @@ export class ReviewRunExecutor {
           tokensOut: 0,
           costUsd: null,
           findingsCount: 0,
-          grounding: '0/0 passed',
+          grounding: "0/0 passed",
           error: msg,
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(runId, {
+          ...this.traceFromBuffer(
+            runId,
+            pull,
+            agent,
+            "0/0 passed",
+            Date.now() - start,
+          ),
+          // T10 — include any paths read/missed before the failure (AC-26).
+          specs_read: readPaths,
+          ...(missing.length > 0 ? { specs_missing: missing } : {}),
+        })
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -418,10 +532,16 @@ export class ReviewRunExecutor {
     if (changedFiles.length === 0) return undefined;
     let rows;
     try {
-      rows = await this.container.repoIntel.getCallerSignatures(repoId, changedFiles, 10);
+      rows = await this.container.repoIntel.getCallerSignatures(
+        repoId,
+        changedFiles,
+        10,
+      );
     } catch (err) {
       // Never let an enrichment break the run — surface only as a Live Log info.
-      runLog.info(`callers digest: repoIntel failed — ${(err as Error).message}`);
+      runLog.info(
+        `callers digest: repoIntel failed — ${(err as Error).message}`,
+      );
       return undefined;
     }
     if (rows.length === 0) return undefined;
@@ -438,7 +558,7 @@ export class ReviewRunExecutor {
       out.push(...lines);
     }
     runLog.info(`callers digest: ${rows.length} caller signature(s) attached`);
-    return out.join('\n');
+    return out.join("\n");
   }
 
   /**
@@ -453,7 +573,9 @@ export class ReviewRunExecutor {
     try {
       const map = await this.container.repoIntel.getRepoMap(repoId);
       if (map.degraded || map.text.trim().length === 0) return undefined;
-      runLog.info(`repo map: ${map.tokens} token(s) attached (cached=${map.cached})`);
+      runLog.info(
+        `repo map: ${map.tokens} token(s) attached (cached=${map.cached})`,
+      );
       return map.text;
     } catch (err) {
       runLog.info(`repo map: repoIntel failed — ${(err as Error).message}`);
@@ -472,16 +594,21 @@ export class ReviewRunExecutor {
     runLog: RunLogger,
   ): Promise<string> {
     const changedFiles = diff.files.map((f) => f.path);
-    if (changedFiles.length === 0) return '';
+    if (changedFiles.length === 0) return "";
     try {
-      const ranks = await this.container.repoIntel.getFileRank(repoId, changedFiles);
-      if (ranks.length === 0) return '';
+      const ranks = await this.container.repoIntel.getFileRank(
+        repoId,
+        changedFiles,
+      );
+      if (ranks.length === 0) return "";
       const hot = ranks.filter((r) => r.percentile >= 95);
-      if (hot.length === 0) return '';
-      runLog.info(`file rank: ${hot.length}/${changedFiles.length} changed file(s) in top 5%`);
+      if (hot.length === 0) return "";
+      runLog.info(
+        `file rank: ${hot.length}/${changedFiles.length} changed file(s) in top 5%`,
+      );
       return `\n\n${hot.length} of ${changedFiles.length} changed file(s) are in the top 5% most-depended-on (high blast risk) — prioritise their correctness.`;
     } catch {
-      return '';
+      return "";
     }
   }
 
@@ -504,15 +631,30 @@ export class ReviewRunExecutor {
         provider: agent.provider,
         model: agent.model,
         pr: pull.number,
-        source: 'local',
+        source: "local",
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_usd: null,
+        findings: 0,
+        grounding,
+      },
+      prompt_assembly: {
+        system: agent.systemPrompt,
+        skills: null,
+        memory: null,
+        specs: null,
+        user: "",
+      },
       tool_calls: [],
-      raw_output: '',
+      raw_output: "",
       memory_pulled: [],
       specs_read: [],
-      log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
+      log: this.container.runBus
+        .buffer(runId)
+        .map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }
 }

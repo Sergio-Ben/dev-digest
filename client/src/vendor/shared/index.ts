@@ -24,4 +24,5 @@ export * from './contracts/why';
 export * from './contracts/eval-ci';
 export * from './contracts/observability';
 export * from './contracts/productionize';
+export * from './contracts/project-context';
 export * from './adapters';

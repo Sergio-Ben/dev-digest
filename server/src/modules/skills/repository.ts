@@ -208,4 +208,22 @@ export class SkillsRepository {
       findings_last_30d: findingsLast30d,
     };
   }
+
+  /**
+   * Persist an ordered list of repo-relative paths on a skill.
+   * This is NOT a body change — it never bumps version, never snapshots,
+   * and never resets threat_level (AC-14).
+   */
+  async setAttachedDocs(
+    workspaceId: string,
+    id: string,
+    paths: string[],
+  ): Promise<SkillRow | undefined> {
+    const [row] = await this.db
+      .update(t.skills)
+      .set({ attachedDocPaths: paths })
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+      .returning();
+    return row;
+  }
 }

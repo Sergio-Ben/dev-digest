@@ -1,0 +1,47 @@
+{
+  "page": {
+    "breadcrumb": "Project Context",
+    "title": "Project Context",
+    "subtitle": "Discovered markdown documents in this repository."
+  },
+  "list": {
+    "heading": "Project Context"
+  },
+  "panel": {
+    "selectPrompt": "Select a document to preview or edit.",
+    "usedByAgents": "{count, plural, one {Used by # agent} other {Used by # agents}}"
+  },
+  "footer": {
+    "documents": "{count, plural, one {# document} other {# documents}}",
+    "tokens": "≈ {count} tokens total",
+    "refreshed": "refreshed {when}"
+  },
+  "preview": {
+    "openPreview": "Preview document",
+    "loading": "Loading…",
+    "loadError": "Could not load document."
+  },
+  "edit": {
+    "tabPreview": "Preview",
+    "tabEdit": "Edit",
+    "saveButton": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "saveError": "Save failed: {message}",
+    "textareaLabel": "Edit document markdown",
+    "resyncWarning": "Warning: a repository resync (git reset --hard) will overwrite any unsaved edits to tracked files.",
+    "saveStatus": "Save status"
+  },
+  "notAvailable": {
+    "title": "Repository not cloned",
+    "body": "Project Context discovery requires a local clone. Clone this repository first to browse discovered documents."
+  },
+  "empty": {
+    "title": "No documents discovered",
+    "body": "No markdown documents were found in this repository."
+  },
+  "error": {
+    "title": "Could not load project context",
+    "body": "An error occurred while loading discovered documents."
+  }
+}

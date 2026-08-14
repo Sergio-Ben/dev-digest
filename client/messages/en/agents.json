@@ -46,6 +46,7 @@
     "tabs": {
       "config": "Config",
       "skills": "Skills",
+      "context": "Context",
       "evals": "Evals",
       "stats": "Stats",
       "ci": "CI"
@@ -92,6 +93,25 @@
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
     "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+  },
+  "context": {
+    "title": "Project Context",
+    "attachedCount": "{attached} of {total} attached",
+    "filterPlaceholder": "Filter by filename or path…",
+    "tokenEstimate": "~{tokens} tokens attached.",
+    "untrustedNote": "Injected as an untrusted block (## Project context) into every run.",
+    "attach": "Attach",
+    "preview": "Preview {name}",
+    "previewBtn": "Preview",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "noMatch": "No documents match.",
+    "empty": "No project-context documents found for this repo.",
+    "loadError": "Could not load project context.",
+    "noRepo": "No repositories found. Add a repository to browse project-context documents.",
+    "tokens": "tokens",
+    "usedByAgents": "Used by {count} agents",
+    "noContent": "No content available."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

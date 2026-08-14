@@ -37,6 +37,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 2026-06-17 — `Icon.AlertCircle` does not exist in `@devdigest/ui` — runtime error "Element type is invalid: expected a string... but got undefined". Never guess icon names; check existing usages (`grep -oh "Icon\.[A-Za-z]*"`) to find what's available. ref: client/src/app/repos/[repoId]/pulls/_components/FindingsPopover/FindingsPopover.tsx:56
 
+2026-06-30 — `BookOpen` is NOT in the `@devdigest/ui` icon registry (`client/src/vendor/ui/icons.tsx`). Attempting to use `icon: "BookOpen" as const` for a tab causes a TypeScript error on `IconName`. For a "context/documents" tab the correct substitute is `"FileText"` which IS registered. Always cross-check `icons.tsx` exports before choosing a tab icon. ref: client/src/vendor/ui/icons.tsx:167
+
 ## Codebase Patterns
 
 2026-06-29 — Business logic (data derivation) in JSX is a code smell in this codebase. Non-trivial derivations live in `helpers.ts` at module level (not in the component body): `buildCronSet()`, `buildSymbolRows()`, `endpointPillClass()`. Inlining them in JSX creates untestable logic and a harder-to-read template. Rule: if a derivation needs more than a single expression, move it to `helpers.ts` (then it is unit-testable — see `helpers.test.ts`). ref: client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/helpers.ts:1
@@ -49,6 +51,12 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 2026-06-17 — `@devdigest/shared` in the client resolves to `./src/vendor/shared/` (client's OWN local copy), NOT to `../server/src/vendor/shared/`. `client/tsconfig.json` has `"@devdigest/shared": ["./src/vendor/shared/index.ts"]`. The `gotchas.md` says "resolves to ../server/src/vendor/shared" — that is wrong. When adding fields to any shared contract (e.g. `PrMeta`), BOTH `server/src/vendor/shared/contracts/platform.ts` AND `client/src/vendor/shared/contracts/platform.ts` must be updated independently. ref: client/tsconfig.json:1
 
+2026-06-30 — When a BRAND-NEW contract file is added server-side (e.g. `server/src/vendor/shared/contracts/project-context.ts`), it does NOT automatically appear in the client. Two manual steps are required: (1) create the identical file at `client/src/vendor/shared/contracts/<name>.ts`; (2) add `export * from './contracts/<name>'` to `client/src/vendor/shared/index.ts`. Forgetting either step means client code importing the new types from `@devdigest/shared` gets a "module has no exported member" error. ref: client/src/vendor/shared/index.ts:1
+
+2026-06-30 — The `RunTrace` contract in `client/src/vendor/shared/contracts/trace.ts` can lag behind the server's copy (`server/src/vendor/shared/contracts/trace.ts`). When a new optional field (e.g. `specs_missing`) is added server-side, TypeScript in the client will reject any reference to it until the client's copy is updated too. Pattern: before adding access to a new trace field in UI code, check both copies are in sync. ref: client/src/vendor/shared/contracts/trace.ts:85
+
+2026-06-30 — Renaming a `PromptBlock` label in `TraceBody` requires only a `runs.json` edit — no component code change. `TraceBody` passes `t("trace.prompt.specs")` (and other keys) directly as the `label` prop to `PromptBlock`, which renders it verbatim. The translation key is the single source of truth for the displayed string. ref: client/src/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/_components/TraceBody/TraceBody.tsx:84
+
 2026-06-18 — `Severity` from `@devdigest/shared` is a Zod `z.enum()` exported as both a value and a type. Its `.enum` property (`Severity.enum.CRITICAL`) equals the string `'CRITICAL'` at runtime. Import it as a value (drop `import type`) to eliminate hardcoded severity strings in `FINDINGS_FIELDS`, `SEVERITY_FILTERS`, and comparison expressions — TypeScript resolves both the type and the runtime accessor from the same import. ref: client/src/vendor/shared/contracts/findings.ts:11
 
 2026-06-17 — PR list column layout is controlled by two constants that MUST change in sync: `GRID` (CSS `grid-template-columns` string) and `COLUMN_KEYS` (string array of column identifiers) in `constants.ts`. Missing one causes misaligned headers/rows with no TypeScript error. ref: client/src/app/repos/[repoId]/pulls/constants.ts:1
@@ -56,6 +64,10 @@ See also: `insights/gotchas.md` for known quirks at project start.
 2026-06-20 — `src/lib/` is structured into three groups: `hooks/` (React Query hooks by domain: settings, repos, pulls, context-files, agents, reviews, trace, repo-intel), `contexts/` (React providers: RepoProvider/useActiveRepo, ThemeProvider/useTheme, ToastProvider/useToast/notify, Providers composite), and `utils/` (pure functions with no React deps: githubUrls, modelLabel, featureModels). Each group has an `index.ts` barrel. `api.ts` and `types.ts` stay at `lib/` root as core infrastructure. ref: client/src/lib/contexts/index.ts:1
 
 2026-06-20 — Team convention: use `@/` path alias for any import going 3+ levels up (`../../../`). Short relative paths (1–2 levels, same feature) are fine. The `@/` alias maps to `src/` via `client/tsconfig.json`. Deep relative paths like `../../../../../lib/hooks/reviews` are explicitly rejected — write `@/lib/hooks/reviews` instead. This is a preference, not a TS enforcement — the compiler accepts both. ref: client/tsconfig.json:1
+
+2026-06-30 — R-7 pattern (workspace-scoped resource needs a repoId for discovery): components that are workspace-scoped (agents, skills — no URL repoId) get their discovery repoId from `useActiveRepo()` (`client/src/lib/contexts/repoContext.tsx:58`). That hook returns the last-used repo (URL path > localStorage `dd-repo` > first repo from API). No prop drilling or repo selector needed for the common case. ref: client/src/app/skills/[id]/_components/SkillEditor/_components/ContextTab/ContextTab.tsx:43
+
+2026-06-30 — In multi-agent parallel implementation, each task owns a distinct messages namespace file. T12 owns `projectContext.json`; T13/T14 must NOT write to it. T14's new strings belong in `skills.json` (the skill editor namespace). Always check task `Owned paths` before adding i18n keys to avoid merge conflicts. ref: client/messages/en/skills.json:1
 
 ## Tool & Library Notes
 
@@ -67,6 +79,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 2026-06-18 — In RTL tests, `[style*="flex-direction: column"]` is too broad to assert "no SeverityChip rendered" — RunHistory's content wrapper also uses `flexDirection: column`, producing false positives. The reliable proxy for SeverityChip absence is `[style*="opacity: 0.2"]` (the faded dot elements), which is unique to that component. ref: client/src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.test.tsx:110
 
+2026-06-30 — `@testing-library/user-event` is NOT installed in the client package (only `@testing-library/react` and `@testing-library/jest-dom` are in devDependencies). Importing it in a test produces "Failed to resolve import" at Vite's import-analysis stage. Use `fireEvent` from `@testing-library/react` for all client tests. ref: client/package.json:1
+
 ## Recurring Errors & Fixes
 
 2026-06-17 — `git add` on paths with square brackets (Next.js dynamic routes like `[repoId]`, `[number]`) fails in zsh with "no matches found: client/src/app/repos/[repoId]/..." — zsh glob-expands brackets before git sees them. Fix: always quote such paths: `git add "client/src/app/repos/[repoId]/pulls/..."`. ref: client/src/app/repos/[repoId]/pulls/constants.ts:1
@@ -74,6 +88,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 2026-06-20 — `src/lib/hooks/reviews.ts` imports `notify` directly via `from "../toast"` (sibling relative path), NOT through any barrel. When moving `toast.tsx` into `lib/contexts/`, updating only `app/` consumers is not enough — files inside `lib/hooks/` have their own direct imports. Always grep inside `lib/hooks/*.ts` when relocating lib files. Fix: change to `from "../contexts/toast"`. ref: client/src/lib/hooks/reviews.ts:8
 
 2026-06-20 — `src/components/showcase/Showcase.tsx` exports `Gallery`, not `Showcase` — despite the filename. Writing `export { Showcase } from "./showcase/Showcase"` in a barrel produces `TS2305: Module has no exported member 'Showcase'`. Fix: `export { Gallery } from "./showcase/Showcase"`. ref: client/src/components/showcase/Showcase.tsx:58
+
+2026-06-30 — `@testing-library/react`'s `getAllByRole` returns `HTMLElement[]`, but TypeScript strict `noUncheckedIndexedAccess` widens `array[0]` to `HTMLElement | undefined`. Pattern that avoids TS2345 on `fireEvent.click(arr[0])`: destructure then assert — `const [first] = arr; fireEvent.click(first!)`. ref: client/src/app/repos/[repoId]/project-context/_components/ProjectContextView.test.tsx:281
 
 ## Session Notes
 
@@ -97,4 +113,18 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 2026-06-20 — To invoke `pr-self-review`, just call the Skill tool (or say "review my changes") — do NOT manually run `git diff` bash commands to collect the diff first. The skill's execution algorithm runs those commands itself internally. Manually pre-collecting diff before calling the skill is redundant and was explicitly corrected by the user. ref: .claude/skills/pr-self-review/SKILL.md:1
 
+2026-06-30 — T11 projectContext hooks: created `client/src/lib/hooks/projectContext.ts` with 5 hooks (`useProjectContext`, `useDocument`, `useSaveDocument`, `useSetAgentDocs`, `useSetSkillDocs`). Also created `client/src/vendor/shared/contracts/project-context.ts` (mirror of the server copy) and added its barrel export. Exported from `lib/hooks/index.ts`. Typecheck clean, all 37 tests green. Files: client/src/lib/hooks/projectContext.ts, client/src/vendor/shared/contracts/project-context.ts, client/src/vendor/shared/index.ts, client/src/lib/hooks/index.ts.
+
+2026-06-30 — T15 TraceBody specs-missing row + prompt label: synced `specs_missing?: string[]` into client's RunTrace contract; added `specsMissing` i18n key to `runs.json`; added conditional `specsMissing` row in TraceBody (hidden when field absent or empty); updated `trace.prompt.specs` label to "Project context — attached specs (untrusted)". All 37 tests green, typecheck clean. Files: client/src/vendor/shared/contracts/trace.ts, client/messages/en/runs.json, client/src/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/_components/TraceBody/TraceBody.tsx.
+
+2026-06-30 — T12 Project Context page: RSC shell (page.tsx, async params) + three "use client" components (ProjectContextView, DocumentRow, DocumentDrawer). Key finds: (1) `"FolderX"` is not a valid IconName — use `"Folder"`; (2) i18n auto-loads via readdirSync in src/i18n/request.ts, no registration; (3) Next.js 15 App Router RSC pages receive `params` as `Promise<{...}>` requiring `await params`; (4) `@testing-library/user-event` not installed — use fireEvent. 8 new tests, all 45 pass, typecheck clean (no errors in owned paths). Files: client/src/app/repos/[repoId]/project-context/, client/messages/en/projectContext.json.
+
 ## Open Questions
+
+2026-06-30 — T13 ContextTab: `useSetAgentDocs(agentId)` takes `agentId` at hook call time (not at mutate time), unlike `useSetAgentSkills` which takes `agentId` at mutate time. The hook signatures differ between skills and docs. Investigated in: client/src/lib/hooks/projectContext.ts:84.
+
+## Session Notes
+
+2026-06-30 — T14 ContextTab for SkillEditor: created `ContextTab/ContextTab.tsx` (`"use client"`) with drag + keyboard (↑↓) reorder, search filter, "N attached" aria-live count, inheritance note (AC-15), attach/detach toggle, bucket badge (colour + text for WCAG), and "serializes as" preview (AC-17) via module-level `buildContribution()`. R-7 decision: `useActiveRepo()` from `client/src/lib/contexts/repoContext.tsx` — returns last-used repo (URL > localStorage > first repo). New `skills.context.*` i18n keys added to `skills.json` (NOT `projectContext.json`, which is T12-owned). Persist via `useSetSkillDocs(skill.id)` to `attached_doc_paths` — never `evidence_files` (distinct convention-evidence field). Icon `"FileText"` used (not `"BookOpen"` — absent from registry). Typecheck clean, 37/37 tests green. Files: client/src/app/skills/[id]/_components/SkillEditor/_components/ContextTab/ContextTab.tsx, client/src/app/skills/[id]/_components/SkillEditor/SkillEditor.tsx, client/src/app/skills/[id]/_components/SkillEditor/constants.ts, client/messages/en/skills.json.
+
+2026-06-30 — T13 ContextTab for AgentEditor: created `ContextTab/ContextTab.tsx` (`"use client"`) with drag + keyboard reorder, search filter, token estimate, preview drawer (Markdown + metadata), attach/detach toggle, "N of M attached" aria-live count. R-7 decision: `useRepos()` + first repo (agents are workspace-scoped). Added `context` entry to TABS constants and `editor.tabs.context` + `agents.context.*` i18n keys to `agents.json`. TypeScript fix required: destructuring array swaps (`[a,b]=[b,a]`) fail with `noUncheckedIndexedAccess`-style errors — must use explicit `tmp` variable pattern. Typecheck clean, 37/37 tests green. Files: client/src/app/agents/[id]/_components/AgentEditor/_components/ContextTab/ContextTab.tsx, client/src/app/agents/[id]/_components/AgentEditor/AgentEditor.tsx, client/src/app/agents/[id]/_components/AgentEditor/constants.ts, client/src/app/agents/[id]/page.tsx, client/messages/en/agents.json.

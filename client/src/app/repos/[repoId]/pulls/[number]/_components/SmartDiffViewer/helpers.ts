@@ -14,11 +14,9 @@ export function shouldStartOpen(file: SmartDiffFile, role: SmartDiffRole): boole
   return file.additions + file.deletions <= AUTO_EXPAND_MAX_LINES;
 }
 
-/** Stable, DOM-safe id derived from a file path — used both as a group-file
- *  anchor prefix and (joined with `-L{line}`) as a per-line scroll target. */
-export function fileAnchorId(path: string): string {
-  return `sd-${path.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-}
+/** Re-exported so this viewer's existing call sites (and their tests) keep one
+ *  import surface; the scheme itself is shared — see `diff-viewer/anchors`. */
+export { fileAnchorId } from "@/components/diff-viewer/anchors";
 
 /** The finding anchored at `line` in this file, if any. Several findings can
  *  share a line (two agents flagging the same spot) — the first wins, matching

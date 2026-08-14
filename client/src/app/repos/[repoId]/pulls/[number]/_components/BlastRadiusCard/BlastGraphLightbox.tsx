@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import type { BlastRadiusResult } from "@devdigest/shared";
 import { BlastGraph } from "./BlastGraph";
+import { BlastGraphLegend } from "./BlastGraphLegend";
 
 interface BlastGraphLightboxProps {
   data: BlastRadiusResult;
@@ -46,17 +47,20 @@ export function BlastGraphLightbox({ data, onClose }: BlastGraphLightboxProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
+      {/* Theme tokens, not slate-900: the graph paints its boxes with
+          --bg-elevated, which is white in the light palette and would have sat
+          on a permanently dark backdrop. */}
       <div
         ref={containerRef}
         role="dialog"
         aria-modal="true"
         aria-label={t("graphTitle")}
-        className="relative w-[90vw] h-[90vh] rounded-xl bg-slate-900 overflow-hidden flex flex-col"
+        className="relative w-[90vw] h-[90vh] rounded-xl bg-[var(--bg-surface)] border border-[var(--border)] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
         <button
-          className="absolute top-3 right-3 z-10 text-slate-400 hover:text-white text-xl cursor-pointer bg-transparent border-0 leading-none p-1"
+          className="absolute top-3 right-3 z-10 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl cursor-pointer bg-transparent border-0 leading-none p-1"
           onClick={onClose}
           aria-label={t("closeGraph")}
         >
@@ -70,21 +74,7 @@ export function BlastGraphLightbox({ data, onClose }: BlastGraphLightboxProps) {
           )}
         </div>
 
-        {/* HTML legend — bottom-left */}
-        <div className="absolute bottom-4 left-4 flex flex-col gap-1 text-[11px] text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-full bg-[#818cf8]" />
-            {t("changedSymbol")}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-full bg-[#94a3b8]" />
-            {t("caller")}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-full bg-[#4ade80]" />
-            {t("endpoint")}
-          </div>
-        </div>
+        <BlastGraphLegend className="absolute bottom-4 left-4" />
       </div>
     </div>,
     document.body,

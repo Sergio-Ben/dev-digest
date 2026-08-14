@@ -62,6 +62,11 @@ export default function PRDetailPage() {
   const focusFindingId = search.get("finding");
   const tab = search.get("tab") ?? (focusFindingId ? "findings" : "overview");
   const traceRunId = search.get("trace");
+  // `?file=&line=` — a deep link to one line of the diff (Blast Radius callers).
+  // `line` is only honoured alongside a `file`, and only when it parses.
+  const focusFile = search.get("file");
+  const parsedLine = Number(search.get("line"));
+  const focusLine = focusFile && Number.isInteger(parsedLine) && parsedLine > 0 ? parsedLine : null;
   const setParams = (patch: Record<string, string | null>, mode: "replace" | "push" = "replace") => {
     const sp = new URLSearchParams(search.toString());
     for (const [key, val] of Object.entries(patch)) {
@@ -74,8 +79,14 @@ export default function PRDetailPage() {
   };
   const setParam = (key: string, val: string | null) => setParams({ [key]: val });
   // Switching tabs by hand drops any deep-link target, so coming back to the
-  // Agent-runs tab later doesn't re-focus a finding the user already left.
-  const setTab = (t: string) => setParams({ tab: t, finding: null });
+  // Agent-runs tab later doesn't re-focus a finding the user already left —
+  // same for the Files-changed tab's `?file=&line=` target.
+  const setTab = (t: string) => setParams({ tab: t, finding: null, file: null, line: null });
+  // Blast Radius caller → that exact line in the diff. Pushed, so Back returns
+  // to Overview. Only offered for files THIS PR touches; callers outside the
+  // diff open on GitHub instead (there is no local line to scroll to).
+  const openFileLine = (file: string, line: number) =>
+    setParams({ tab: "diff", file, line: String(line), finding: null }, "push");
   // Smart Diff finding badge → that finding's CARD in the Agent-runs tab.
   // Plain in-app routing (pushed, so Back returns to the diff) — no popup and
   // no github.com hop; FindingsTab/FindingsPanel read `?finding=` and reveal
@@ -149,7 +160,16 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prBody={pr.body} prId={prId} />}
+        {tab === "overview" && (
+          <OverviewTab
+            prBody={pr.body}
+            prId={prId}
+            changedPaths={pr.files.map((f) => f.path)}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+            onOpenFileLine={openFileLine}
+          />
+        )}
 
         {tab === "findings" && (
           <FindingsTab
@@ -187,6 +207,8 @@ export default function PRDetailPage() {
             files={pr.files}
             canComment={pr.status === "open"}
             onOpenFinding={openFinding}
+            focusFile={focusFile}
+            focusLine={focusLine}
           />
         )}
       </div>

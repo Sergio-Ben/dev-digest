@@ -20,9 +20,21 @@ interface DiffTabProps {
   canComment?: boolean;
   /** Smart order: clicking a finding routes to its card in the Agent-runs tab. */
   onOpenFinding?: (findingId: string) => void;
+  /** `?file=&line=` deep-link target (e.g. a Blast Radius caller that this PR
+   *  also touches) — forwarded to whichever viewer ends up rendering. */
+  focusFile?: string | null;
+  focusLine?: number | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: DiffTabProps) {
+export function DiffTab({
+  prId,
+  filesCount,
+  files,
+  canComment,
+  onOpenFinding,
+  focusFile,
+  focusLine,
+}: DiffTabProps) {
   const t = useTranslations("brief");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -58,7 +70,14 @@ export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: 
   const hasSmartGroups = !!smartDiff && smartDiff.groups.some((g) => g.files.length > 0);
   let diffArea: React.ReactNode;
   if (order === "original") {
-    diffArea = <DiffViewer files={files} commenting={commenting} />;
+    diffArea = (
+      <DiffViewer
+        files={files}
+        commenting={commenting}
+        focusFile={focusFile}
+        focusLine={focusLine}
+      />
+    );
   } else if (smartDiffLoading) {
     diffArea = (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -68,7 +87,14 @@ export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: 
       </div>
     );
   } else if (smartDiffError || !smartDiff || !hasSmartGroups) {
-    diffArea = <DiffViewer files={files} commenting={commenting} />;
+    diffArea = (
+      <DiffViewer
+        files={files}
+        commenting={commenting}
+        focusFile={focusFile}
+        focusLine={focusLine}
+      />
+    );
   } else {
     diffArea = (
       <SmartDiffViewer
@@ -76,6 +102,8 @@ export function DiffTab({ prId, filesCount, files, canComment, onOpenFinding }: 
         files={files}
         commenting={commenting}
         onOpenFinding={onOpenFinding}
+        focusFile={focusFile}
+        focusLine={focusLine}
       />
     );
   }

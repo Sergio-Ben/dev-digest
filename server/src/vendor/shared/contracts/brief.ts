@@ -127,7 +127,10 @@ export const SmartDiff = z.object({
 });
 export type SmartDiff = z.infer<typeof SmartDiff>;
 
-// ---- Composed PR Brief (pr_brief.json) ----
+// ---- Composed PR Brief (pr_brief.json) — Part-0 placeholder ----
+// Superseded by `BriefEnvelope` (below) as the actual `pr_brief.json` shape.
+// Kept only because `PrBrief`'s member types (Intent, BlastRadius, Risks,
+// PrHistory) are still used independently elsewhere.
 export const PrBrief = z.object({
   intent: Intent,
   blast: BlastRadius,
@@ -135,6 +138,89 @@ export const PrBrief = z.object({
   history: PrHistory,
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+// ---- PR Brief feature (pr_brief.json) ----
+// `BriefRiskLevel` re-exports `RiskSeverity` so the brief's `risk_level` and
+// each risk's `severity` share one ordered domain (AC-20 compares over it).
+export const BriefRiskLevel = RiskSeverity;
+export type BriefRiskLevel = RiskSeverity;
+export const BRIEF_RISK_LEVEL_ORDER = ['low', 'medium', 'high'] as const;
+
+export const ReviewFocusItem = z.object({
+  file: z.string().min(1),
+  line: z.number().int().positive().nullable(),
+  reason: z.string().min(1),
+  endpoint_ref: z.string().nullish(),
+});
+export type ReviewFocusItem = z.infer<typeof ReviewFocusItem>;
+
+// `Risk` itself is not modified (kept as-is for existing `Risks` consumers) —
+// `BriefRisk` extends it with the file/endpoint reference requirements the
+// brief's grounding pass needs (G-a/G-b).
+export const BriefRisk = Risk.extend({
+  file_refs: z.array(z.string()).min(1),
+  endpoint_refs: z.array(z.string()).default([]),
+});
+export type BriefRisk = z.infer<typeof BriefRisk>;
+
+export const Brief = z.object({
+  what: z.string(),
+  why: z.string(),
+  risk_level: BriefRiskLevel,
+  risks: z.array(BriefRisk),
+  review_focus: z.array(ReviewFocusItem),
+});
+export type Brief = z.infer<typeof Brief>;
+
+// AC-45's header-only vs full-diff token estimate (already computed by
+// composeBrief/composer.ts for its cost-savings log line) — surfaced to the
+// client so the PR Brief card can show the same cost-visibility promise
+// (US-6) the log line makes server-side. Persisted in the envelope so a
+// cache-hit read still has a number to show, not just a fresh compose.
+export const BriefTokens = z.object({
+  header_only: z.number().int(),
+  full_diff: z.number().int(),
+});
+export type BriefTokens = z.infer<typeof BriefTokens>;
+
+export const BriefEnvelope = z.object({
+  schema_version: z.number().int(),
+  state_key: z.string(),
+  head_sha: z.string().nullable(),
+  generated_at: z.string(),
+  provider: z.string(),
+  model: z.string(),
+  degraded_inputs: z.array(z.string()),
+  blast_fingerprint: z.string().nullable(),
+  tokens: BriefTokens.nullable(),
+  brief: Brief,
+});
+export type BriefEnvelope = z.infer<typeof BriefEnvelope>;
+
+// ---- Brief HTTP response (GET/POST /pulls/:id/brief) ----
+export const BriefResponse = z.object({
+  brief: Brief,
+  degraded_inputs: z.array(z.string()),
+  head_sha: z.string().nullable(),
+  generated_at: z.string(),
+  provider: z.string(),
+  model: z.string(),
+  tokens: BriefTokens.nullable(),
+});
+export type BriefResponse = z.infer<typeof BriefResponse>;
+
+/**
+ * Splits a file reference like `src/config.ts:12` into its file path and
+ * optional 1-based line number. Pure — no I/O. Single definition shared by
+ * the server's grounding pass and the client's risk-row rendering so the
+ * two cannot drift.
+ */
+export function parseFileRef(ref: string): { file: string; line: number | null } {
+  const match = ref.match(/^(.*):(\d+)$/);
+  if (!match) return { file: ref, line: null };
+  const [, file, lineStr] = match;
+  return { file: file ?? ref, line: lineStr ? Number(lineStr) : null };
+}
 
 // ---- Blast Radius HTTP response (GET /pulls/:id/blast) ----
 // Note: two parallel type families exist intentionally:

@@ -41,5 +41,30 @@
       "title": "{count} lines changed — consider splitting this PR"
     },
     "empty": "No changes to group yet."
-  }
+  },
+  "card": {
+    "sectionLabel": "PR Brief",
+    "whatLabel": "What changed",
+    "whyLabel": "Why",
+    "risksLabel": "Risks",
+    "riskFileAriaLabel": "Open {file} in Files changed",
+    "prScore": "PR SCORE",
+    "tokensSavedLabel": "full diff → header-only"
+  },
+  "reviewFocus": {
+    "heading": "Review focus — read these first",
+    "fileLineLabel": "{file}:{line}",
+    "openAriaLabel": "Open {file} in Files changed"
+  },
+  "riskLevel": {
+    "high": "High risk",
+    "medium": "Medium risk",
+    "low": "Low risk"
+  },
+  "regenerate": "Regenerate",
+  "regenerateAriaLabel": "Regenerate PR brief",
+  "error": "Couldn't load the PR brief.",
+  "retry": "Retry",
+  "noChangedFiles": "No changed files",
+  "noChangedFilesHint": "This PR has no changed files, so a brief can't be composed."
 }

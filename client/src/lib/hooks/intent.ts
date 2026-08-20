@@ -19,6 +19,11 @@ export function useRecomputeIntent(prId: string | number | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.post<PrIntentRecord>(`/pulls/${prId}/intent/recompute`),
-    onSuccess: (data) => qc.setQueryData(["intent", prId], data),
+    onSuccess: (data) => {
+      qc.setQueryData(["intent", prId], data);
+      // The brief embeds intent-derived context (what/why/risks) — a
+      // recomputed intent can make it stale, so invalidate it too.
+      qc.invalidateQueries({ queryKey: ["brief", prId] });
+    },
   });
 }

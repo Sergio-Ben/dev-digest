@@ -15,6 +15,7 @@ What is covered, what is not, and why.
 | `onboarding` | `flows/onboarding.json` | Onboarding wizard loads and first step renders |
 | `settings` | `flows/settings.json` | Settings page loads, provider selector visible |
 | `smart-diff-finding-nav` | `specs/08-smart-diff-finding-nav.flow.json` | Clicking a Smart Diff line's "View finding" button routes in-app to `?tab=findings&finding=<id>` and reveals that finding's card (the file header badge stays an in-file jump) |
+| `pr-brief` | `specs/09-pr-brief.flow.json` | PR Brief card on the Overview tab renders the seeded risk level and ordered "Review focus" list from a **seeded `pr_brief` row** (cache hit, zero model calls); clicking the top focus row routes in-app to `?tab=diff&file=...&line=...` and that file renders in the diff viewer |
 
 ## What Is Not Covered
 

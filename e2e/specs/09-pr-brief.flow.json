@@ -1,0 +1,18 @@
+{
+  "name": "PR Brief card renders the seeded brief and its top focus row deep-links into the diff",
+  "description": "From PR #482's Overview tab, confirm the PR Brief card renders the seeded risk level and its ordered 'Review focus' list (a real seeded changed-file path in the top row), then click that top row and confirm it navigates IN-APP to the Files changed tab with ?tab=diff&file=...&line=... and that file renders in the diff viewer. The brief row for src/api/users.ts is deliberately the only file-ref button with that accessible name on the page (no risk row also cites src/api/users.ts), so the click target is unambiguous. Read-only seeded data (no model call) — the seeded pr_brief row's state_key matches what BriefService derives for PR #482, so the GET is a cache hit and composes nothing. Assumes a freshly-seeded DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "PR BRIEF"], "label": "PR Brief card section label renders (SectionLabel is CSS text-transform: uppercase, so the rendered/innerText string is all-caps)" },
+    { "cmd": ["wait", "--text", "High risk"], "label": "seeded risk level word renders" },
+    { "cmd": ["wait", "--text", "src/api/users.ts:45"], "label": "a real seeded changed-file path renders in the top review-focus row" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Open src/api/users.ts in Files changed"], "label": "click the top review-focus row" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "deep link switched to the Files changed tab" },
+    { "cmd": ["wait", "--url", "line="], "label": "deep link carries the focus row's line number" },
+    { "cmd": ["wait", "--text", "src/api/users.ts"], "label": "the focused file renders in the diff viewer" }
+  ]
+}

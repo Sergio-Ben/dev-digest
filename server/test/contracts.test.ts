@@ -15,6 +15,10 @@ import {
   Settings,
   Repo,
   PrDetail,
+  Brief,
+  BriefRisk,
+  ReviewFocusItem,
+  parseFileRef,
 } from '@devdigest/shared';
 
 /**
@@ -206,5 +210,55 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('Brief contracts (AC-12, AC-13, AC-17)', () => {
+  const validBriefRisk = {
+    kind: 'security',
+    title: 't',
+    explanation: 'e',
+    severity: 'high',
+    file_refs: ['src/config.ts:12'],
+  };
+  const validReviewFocusItem = {
+    file: 'src/config.ts',
+    line: 12,
+    reason: 'touches secret handling',
+  };
+  const validBrief = {
+    what: 'w',
+    why: 'y',
+    risk_level: 'high',
+    risks: [validBriefRisk],
+    review_focus: [validReviewFocusItem],
+  };
+
+  it('AC-12: rejects a Brief missing any of the five required fields', () => {
+    expect(() => Brief.parse(validBrief)).not.toThrow();
+    for (const key of Object.keys(validBrief)) {
+      const { [key]: _omitted, ...rest } = validBrief as Record<string, unknown>;
+      expect(() => Brief.parse(rest)).toThrow();
+    }
+  });
+
+  it('AC-13: rejects a BriefRisk with empty file_refs', () => {
+    expect(() => BriefRisk.parse(validBriefRisk)).not.toThrow();
+    expect(() => BriefRisk.parse({ ...validBriefRisk, file_refs: [] })).toThrow();
+  });
+
+  it('AC-13: rejects a ReviewFocusItem with no reason', () => {
+    expect(() => ReviewFocusItem.parse(validReviewFocusItem)).not.toThrow();
+    const { reason: _reason, ...withoutReason } = validReviewFocusItem;
+    expect(() => ReviewFocusItem.parse(withoutReason)).toThrow();
+    expect(() => ReviewFocusItem.parse({ ...validReviewFocusItem, reason: '' })).toThrow();
+  });
+
+  it('AC-17: parseFileRef splits a trailing :<digits> line reference', () => {
+    expect(parseFileRef('src/config.ts:12')).toEqual({ file: 'src/config.ts', line: 12 });
+  });
+
+  it('AC-17: parseFileRef returns a null line when no trailing reference is present', () => {
+    expect(parseFileRef('src/config.ts')).toEqual({ file: 'src/config.ts', line: null });
   });
 });

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
+import type { Intent, Brief, BriefEnvelope } from '@devdigest/shared';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
@@ -9,6 +10,8 @@ import {
   TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { seedDemoPullsAndRuns } from './seed-demo.js';
+import { deriveStateKey } from '../modules/brief/state-key.js';
+import { BRIEF_SCHEMA_VERSION } from '../modules/brief/constants.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -305,6 +308,130 @@ export async function seed(
       filesCount: pr482Rows.length,
     })
     .where(eq(t.pullRequests.id, pr!.id));
+
+  // ---- PR #482 intent + PR Brief (seeded so the e2e brief flow hits the
+  // cache with ZERO model calls — the e2e harness has no LLM configured).
+  //
+  // `pr_intent` is seeded first because `deriveStateKey` folds the intent
+  // record into the brief's cache-validity key
+  // (`BRIEF_SCHEMA_VERSION | headSha | sorted(changedPaths) | canonical(intent)
+  // | provider | model` — see `modules/brief/state-key.ts`). Without a stored
+  // intent, `BriefService.compose` would try `IntentService.getOrCompute`,
+  // which — with no stored row — calls the intent model and fails in this
+  // harness; seeding it here makes intent resolution itself a cache hit too.
+  //
+  // Refreshed on EVERY seed run (not gated by `if (!pr)`) so the state key
+  // always matches the current `pr482Rows`/headSha, mirroring the pr_files
+  // refresh above.
+  const pr482Intent: Intent = {
+    intent:
+      'Add a Redis-backed token-bucket rate limiter in front of the public API to block abuse from unauthenticated clients.',
+    in_scope: ['src/middleware/ratelimit.ts', 'src/api/public/webhooks.ts'],
+    out_of_scope: [
+      'Rotating the Stripe secret key committed in src/config.ts',
+      'Fixing the N+1 query in the user list endpoint',
+    ],
+  };
+  await db
+    .insert(t.prIntent)
+    .values({
+      prId: pr!.id,
+      intent: pr482Intent.intent,
+      inScope: pr482Intent.in_scope,
+      outOfScope: pr482Intent.out_of_scope,
+    })
+    .onConflictDoUpdate({
+      target: t.prIntent.prId,
+      set: {
+        intent: pr482Intent.intent,
+        inScope: pr482Intent.in_scope,
+        outOfScope: pr482Intent.out_of_scope,
+      },
+    });
+
+  // Provider/model mirror the `risk_brief` feature-model slot's registry
+  // default (`server/src/vendor/shared/contracts/platform.ts`) — the default
+  // seed settings never override it, so this is exactly what
+  // `resolveFeatureModel(container, workspaceId, 'risk_brief')` resolves to.
+  const briefProvider = 'openai';
+  const briefModel = 'gpt-4.1';
+  const briefChangedPaths = pr482Rows.map((f) => f.path);
+  const briefStateKey = deriveStateKey({
+    headSha: pr!.headSha,
+    changedPaths: briefChangedPaths,
+    intent: pr482Intent,
+    provider: briefProvider,
+    model: briefModel,
+  });
+
+  // Risks/focus rows are anchored to PR #482's REAL changed files and cite
+  // the same lines as the seeded findings above (src/config.ts:12's Stripe
+  // key, src/api/users.ts:45's N+1 loop) so the brief's story lines up with
+  // what a reviewer sees elsewhere on the PR. Seeded ids are not stable
+  // across re-seeds — everything here is asserted by the e2e flow via file
+  // path / copy, never a uuid.
+  //
+  // The TOP `review_focus` row deliberately cites a file (src/api/users.ts)
+  // that no `risk.file_refs` entry also cites: the card renders a button
+  // per file ref, and `aria-label` is the SAME translated string
+  // ("Open {file} in Files changed") wherever that file is referenced — a
+  // top-row file that collided with a risk's file ref would make the e2e
+  // flow's click target ambiguous (two buttons, one accessible name).
+  const pr482Brief: Brief = {
+    what: 'Adds a Redis-backed token-bucket rate limiter in front of the public API and raises the per-request limit for callers that send an Authorization header.',
+    why: 'Unauthenticated clients could hammer the public webhook and user-list endpoints; this throttles abuse while leaving headroom for trusted callers.',
+    risk_level: 'high',
+    risks: [
+      {
+        kind: 'security',
+        title: 'Hardcoded Stripe secret key in config',
+        explanation:
+          'A live Stripe secret key (`sk_live_…`) is committed in plaintext in src/config.ts as part of this change.',
+        severity: 'high',
+        file_refs: ['src/config.ts:12'],
+        endpoint_refs: [],
+      },
+      {
+        kind: 'security',
+        title: 'Rate limit bypassable via an Authorization header',
+        explanation:
+          'Any request carrying an Authorization header — valid or not — is granted a 1000-request limit instead of 100, letting an attacker bypass the intended throttle by sending an arbitrary header.',
+        severity: 'medium',
+        file_refs: ['src/middleware/ratelimit.ts:53'],
+        endpoint_refs: [],
+      },
+    ],
+    review_focus: [
+      {
+        file: 'src/api/users.ts',
+        line: 45,
+        reason:
+          'N+1 query in the user list endpoint — now amplified by clients retrying after a 429; confirm retries won’t hammer the DB.',
+      },
+      {
+        file: 'src/config.ts',
+        line: 12,
+        reason:
+          'Live Stripe secret committed in plaintext — verify it was rotated and moved to an environment variable before merge.',
+      },
+    ],
+  };
+  const pr482BriefEnvelope: BriefEnvelope = {
+    schema_version: BRIEF_SCHEMA_VERSION,
+    state_key: briefStateKey,
+    head_sha: pr!.headSha,
+    generated_at: new Date().toISOString(),
+    provider: briefProvider,
+    model: briefModel,
+    degraded_inputs: [],
+    blast_fingerprint: null,
+    tokens: { header_only: 1300, full_diff: 8200 },
+    brief: pr482Brief,
+  };
+  await db
+    .insert(t.prBrief)
+    .values({ prId: pr!.id, json: pr482BriefEnvelope })
+    .onConflictDoUpdate({ target: t.prBrief.prId, set: { json: pr482BriefEnvelope } });
 
   // ---- built-in agents (the three starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).

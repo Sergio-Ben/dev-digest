@@ -57,13 +57,22 @@ export function groundBrief(raw: Brief, sets: GroundingSets): GroundingOutcome {
     });
   }
 
-  // 4: drop review_focus entries whose file isn't real, or whose
-  // endpoint_ref (when present) isn't real (AC-18, AC-19).
-  const survivingFocus = raw.review_focus.filter((item) => {
-    if (!sets.files.has(item.file)) return false;
-    if (item.endpoint_ref != null && !sets.endpoints.has(item.endpoint_ref)) return false;
-    return true;
-  });
+  // 4: drop review_focus entries whose file isn't real (AC-18). An unreal
+  // endpoint_ref is nulled out, not fatal to the entry (AC-19 drops "that
+  // citation", not the entry it's attached to) — mirroring how a risk's
+  // endpoint_refs are filtered independently of whether the risk survives
+  // on its file_refs. A model that puts something other than a real
+  // endpoint/cron in `endpoint_ref` (observed in practice: a file:line
+  // range) must not cost a verified, real file:line citation.
+  const survivingFocus = raw.review_focus
+    .filter((item) => sets.files.has(item.file))
+    .map((item) => ({
+      ...item,
+      endpoint_ref:
+        item.endpoint_ref != null && sets.endpoints.has(item.endpoint_ref)
+          ? item.endpoint_ref
+          : null,
+    }));
 
   // 5: dedupe by `${file}:${line ?? ''}`, first occurrence wins.
   const seen = new Set<string>();

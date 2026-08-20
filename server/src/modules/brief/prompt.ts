@@ -159,6 +159,8 @@ Citation rules (strict — violations are discarded downstream, so follow them e
 - Cite only files that appear in the "## Changed files" section below, by their exact path. Never invent a file path, and never cite a directory.
 - Cite only endpoints or crons explicitly listed in the "## Blast radius" section below. Never invent an endpoint or cron.
 - Every risk must include at least one real file reference (a listed path, optionally suffixed with ":<line>").
+- "endpoint_ref" (on a risk or a review_focus entry) is OPTIONAL and is ONLY for an endpoint or cron literally listed in "## Blast radius". Leave it null in every other case — it is never a place for a file path, a line range, or any other kind of citation; a single invalid "endpoint_ref" causes the WHOLE entry to be discarded, taking its valid file citation down with it.
+- "review_focus" must NEVER be empty. Always return at least one entry (up to six), even for a large, unfamiliar, or low-risk PR — pick the single changed file most worth reading first and say why in one line, rather than omitting the list because nothing stood out.
 - Order "review_focus" MOST-IMPORTANT-FIRST. Each entry's "reason" must be ONE line.
 
 Scope signals, in priority order:
@@ -174,7 +176,7 @@ Return a JSON object matching the Brief schema:
 - why: string — one or two sentences describing why the change was made
 - risk_level: "low" | "medium" | "high" — overall risk of this change
 - risks: array of concrete risks, each with kind, title, explanation, severity, and file_refs (at least one)
-- review_focus: array of { file, line, reason }, ordered most-important-first, each reason a single line`;
+- review_focus: array of { file, line, reason }, ordered most-important-first, each reason a single line, REQUIRED to contain at least one entry (max six)`;
 
 // ---------- Public API --------------------------------------------------------
 

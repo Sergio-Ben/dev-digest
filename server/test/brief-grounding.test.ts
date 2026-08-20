@@ -125,7 +125,7 @@ describe('groundBrief', () => {
     expect(brief.review_focus[0]!.reason).toBe('first');
   });
 
-  it('AC-18, AC-19: drops a review_focus entry whose file is not real, and one whose endpoint_ref is invented', () => {
+  it('AC-18: drops a review_focus entry whose file is not real', () => {
     const raw = baseBrief({
       review_focus: [
         { file: 'src/real.ts', line: 1, reason: 'ok', endpoint_ref: null },
@@ -137,8 +137,20 @@ describe('groundBrief', () => {
     const sets = { files: new Set(['src/real.ts']), endpoints: new Set<string>() };
     const { brief } = groundBrief(raw, sets);
 
+    expect(brief.review_focus).toHaveLength(2);
+    expect(brief.review_focus.map((f) => f.reason)).toEqual(['ok', 'bad endpoint']);
+  });
+
+  it('AC-19: nulls an invented endpoint_ref rather than dropping the whole review_focus entry', () => {
+    const raw = baseBrief({
+      review_focus: [{ file: 'src/real.ts', line: 2, reason: 'bad endpoint', endpoint_ref: 'GET /invented' }],
+    });
+
+    const sets = { files: new Set(['src/real.ts']), endpoints: new Set<string>() };
+    const { brief } = groundBrief(raw, sets);
+
     expect(brief.review_focus).toHaveLength(1);
-    expect(brief.review_focus[0]!.reason).toBe('ok');
+    expect(brief.review_focus[0]!.endpoint_ref).toBeNull();
   });
 
   it('AC-20: downgrades risk_level to the highest surviving severity when it is lower than the model value', () => {

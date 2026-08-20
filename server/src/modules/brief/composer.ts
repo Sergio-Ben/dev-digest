@@ -12,8 +12,8 @@
  * inputs are injected/resolved by the caller, mirroring `intent/classifier.ts`).
  */
 import type { BlastRadiusResult, Brief, Intent, LLMProvider, UnifiedDiff } from '@devdigest/shared';
-import { Brief as BriefSchema } from '@devdigest/shared';
-import type { z } from 'zod';
+import { Brief as BriefSchema, ReviewFocusItem } from '@devdigest/shared';
+import { z } from 'zod';
 import { estimateTokens } from '../_shared/diff-prompt.js';
 import type { Logger } from '../reviews/run-executor.js';
 import { buildUserMessage, SYSTEM_PROMPT, type BriefReference } from './prompt.js';
@@ -41,6 +41,24 @@ export interface ComposeBriefResult {
   sections: { present: string[]; absent: string[] };
   tokens: { headerOnly: number; fullDiff: number; saved: number };
 }
+
+/**
+ * The MODEL is held to a stricter shape than the stored/response `Brief`
+ * contract: `review_focus` must contain at least one entry. This is enforced
+ * only here, at the model-call boundary — not on `Brief` itself — because
+ * grounding legitimately produces an empty `review_focus` when every model
+ * citation turns out to be unreal (AC-16/AC-18/AC-20), and the stored/HTTP
+ * `Brief` type must still accept that (see `brief-grounding.test.ts`, which
+ * re-parses grounded output against the plain `Brief` schema). Without this,
+ * a conservative model facing a large/unfamiliar diff can satisfy the base
+ * schema and the "never invent a citation" prompt rule simultaneously by
+ * just returning `review_focus: []` — observed in practice on real PRs.
+ * An empty array now fails validation and gets one repair reprompt via
+ * `parseWithRepair` instead of silently shipping a thin brief.
+ */
+const ModelBriefSchema = BriefSchema.extend({
+  review_focus: z.array(ReviewFocusItem).min(1),
+});
 
 /**
  * Compose a `Brief` from resolved PR signals with exactly one structured LLM
@@ -95,14 +113,16 @@ export async function composeBrief(opts: ComposeBriefOpts): Promise<ComposeBrief
 
   const result = await llm.completeStructured<Brief>({
     model,
-    // `BriefRisk.endpoint_refs` uses `.default([])`, so the schema's INPUT
-    // type has that field optional while its OUTPUT type (== `Brief`, the
-    // one this module cares about) requires it. `z.ZodType<T>`'s Input
+    // `ModelBriefSchema` (see above) additionally requires a non-empty
+    // `review_focus`; its OUTPUT shape is otherwise identical to `Brief`.
+    // Also: `BriefRisk.endpoint_refs` uses `.default([])`, so the schema's
+    // INPUT type has that field optional while its OUTPUT type (== `Brief`,
+    // the one this module cares about) requires it. `z.ZodType<T>`'s Input
     // parameter defaults to `T` too, which trips a spurious assignability
     // error even though the two Output types are identical — cast away the
     // Input-side mismatch; the runtime schema and its validation are
     // unaffected.
-    schema: BriefSchema as unknown as z.ZodType<Brief>,
+    schema: ModelBriefSchema as unknown as z.ZodType<Brief>,
     schemaName: 'Brief',
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },

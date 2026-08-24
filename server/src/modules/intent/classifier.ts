@@ -14,30 +14,11 @@
 import type { LLMProvider, UnifiedDiff } from '@devdigest/shared';
 import { Intent } from '@devdigest/shared';
 import { wrapUntrusted } from '../../platform/prompt.js';
+import { estimateTokens, changedFilesSection } from '../_shared/diff-prompt.js';
 import type { ResolvedReference } from './references.js';
 import type { Logger } from '../reviews/run-executor.js';
 
-// ---------- Token estimate helper ------------------------------------------
-
-/**
- * Coarse token count estimate: ceil(chars / 4).
- * Deliberately approximate — labeled "~" in all log output.
- */
-function estimateTokens(s: string): number {
-  return Math.ceil(s.length / 4);
-}
-
 // ---------- Message builder helpers ----------------------------------------
-
-/** Reconstruct a hunk header line from its parsed fields. */
-function hunkHeader(hunk: {
-  oldStart: number;
-  oldLines: number;
-  newStart: number;
-  newLines: number;
-}): string {
-  return `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
-}
 
 /**
  * Build the LLM user message from the available PR signals.
@@ -90,14 +71,7 @@ function buildUserMessage(opts: {
   }
 
   // Always: changed files with hunk headers (NO added/removed code body lines)
-  const fileLines: string[] = [];
-  for (const file of diff.files) {
-    fileLines.push(`### ${file.path}`);
-    for (const hunk of file.hunks) {
-      fileLines.push(hunkHeader(hunk));
-    }
-  }
-  parts.push(`## Changed files\n${fileLines.join('\n')}`);
+  parts.push(`## Changed files\n${changedFilesSection(diff)}`);
 
   return parts.join('\n\n');
 }

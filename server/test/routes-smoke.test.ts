@@ -62,7 +62,7 @@ describe('routes (no DB)', () => {
     const app = await buildApp({ config });
     await app.ready();
     const tree = app.printRoutes({ commonPrefix: false });
-    for (const path of ['/blast', '/smart-diff', '/intent', '/conventions']) {
+    for (const path of ['/blast', '/smart-diff', '/intent', '/conventions', '/brief']) {
       expect(tree, `${path} is not registered`).toContain(path);
     }
     await app.close();
@@ -73,6 +73,16 @@ describe('routes (no DB)', () => {
     // missing module would fall through to Fastify's 404 handler instead.
     const app = await buildApp({ config });
     const res = await app.inject({ method: 'GET', url: '/pulls/not-a-uuid/blast' });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('validation_error');
+    await app.close();
+  });
+
+  it('GET /pulls/:id/brief validates the id before touching the DB', async () => {
+    // 422 (not 404) proves the route is registered and its schema runs: a
+    // missing module would fall through to Fastify's 404 handler instead.
+    const app = await buildApp({ config });
+    const res = await app.inject({ method: 'GET', url: '/pulls/not-a-uuid/brief' });
     expect(res.statusCode).toBe(422);
     expect(res.json().error.code).toBe('validation_error');
     await app.close();

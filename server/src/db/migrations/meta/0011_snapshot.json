@@ -1,6 +1,6 @@
 {
-  "id": "2a13542a-6b9f-4c29-980f-cdf122829a12",
-  "prevId": "e10638ec-8793-4575-b4b0-5b1741934ab7",
+  "id": "e1d27221-cd6d-407b-a47a-c23d33e338ae",
+  "prevId": "796e63cf-521b-45a0-8385-cc394e9262d0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1037,12 +1037,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1147,6 +1141,20 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "attached_doc_paths": {
+          "name": "attached_doc_paths",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "threat_level": {
+          "name": "threat_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unknown'"
         },
         "created_at": {
           "name": "created_at",
@@ -1380,6 +1388,13 @@
           "notNull": true,
           "default": true
         },
+        "attached_doc_paths": {
+          "name": "attached_doc_paths",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "enabled": {
           "name": "enabled",
           "type": "boolean",
@@ -1496,6 +1511,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},

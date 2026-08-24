@@ -8,6 +8,7 @@ import { useBlastRadius } from "@/lib/hooks/pulls";
 import { s } from "./styles";
 import { IntentCard } from "./IntentCard";
 import { BlastRadiusCard } from "../BlastRadiusCard";
+import { PrBriefCard, ReviewFocusCard } from "./PrBriefCard";
 
 interface OverviewTabProps {
   prBody: string | null | undefined;
@@ -18,6 +19,11 @@ interface OverviewTabProps {
   /** "owner/repo" + head sha, for github.com blob links to callers outside the diff. */
   repoFullName: string | null;
   headSha: string | null | undefined;
+  /** The PR's latest-review score/cost (existing review-verdict data, per
+   *  `PrMeta`/`PrDetail`) — shown in the PR Brief card's header alongside its
+   *  own risk level, at the user's explicit request to surface it there. */
+  score: number | null;
+  costUsd: number | null;
   onOpenFileLine: (file: string, line: number) => void;
 }
 
@@ -27,9 +33,12 @@ export function OverviewTab({
   changedPaths,
   repoFullName,
   headSha,
+  score,
+  costUsd,
   onOpenFileLine,
 }: OverviewTabProps) {
   const t = useTranslations("prReview");
+  const tBrief = useTranslations("brief");
   const {
     data: blastRadius,
     isLoading: blastLoading,
@@ -39,6 +48,26 @@ export function OverviewTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* PR Brief: full-width, first in DOM order (AC-33). Renders its own
+          SectionLabel inside the card, so no parent label here — and no
+          h-[400px]/definite-height wrapper: that constraint only applies to
+          cards inside the alignItems:"stretch" grid below (client/INSIGHTS.md
+          2026-08-10); this card is outside it and sizes to its own content. */}
+      {prId && (
+        <ErrorBoundary
+          fallback={
+            <div className="text-sm text-red-400 p-4">{tBrief("error")}</div>
+          }
+        >
+          <PrBriefCard
+            prId={prId}
+            score={score}
+            costUsd={costUsd}
+            onOpenFileLine={onOpenFileLine}
+          />
+        </ErrorBoundary>
+      )}
+
       {/* Two-column: Intent (left) + Blast Radius (right) */}
       <div
         style={{
@@ -72,6 +101,19 @@ export function OverviewTab({
           </ErrorBoundary>
         </section>
       </div>
+
+      {/* Review focus: its own full-width card below Intent/Blast, not nested
+          inside PrBriefCard — matches the reviewer-facing read order (risk
+          level → intent/blast context → read-these-first list). */}
+      {prId && (
+        <ErrorBoundary
+          fallback={
+            <div className="text-sm text-red-400 p-4">{tBrief("error")}</div>
+          }
+        >
+          <ReviewFocusCard prId={prId} onOpenFileLine={onOpenFileLine} />
+        </ErrorBoundary>
+      )}
 
       {prBody && (
         <section>

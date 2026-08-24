@@ -49,6 +49,17 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
               )}
             </div>
           </Row>
+          {(trace.specs_missing != null && trace.specs_missing.length > 0) && (
+            <Row label={t("trace.config.specsMissing")}>
+              <div style={s.specsWrap}>
+                {trace.specs_missing.map((sp, i) => (
+                  <span key={i} className="mono" style={s.spec}>
+                    {sp}
+                  </span>
+                ))}
+              </div>
+            </Row>
+          )}
         </div>
       </TraceSection>
 

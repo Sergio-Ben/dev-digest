@@ -1,15 +1,7 @@
 import type { Container } from '../../platform/container.js';
-import type {
-  Agent,
-  AgentSkillLink,
-  AgentVersion,
-  CiFailOn,
-  ModelInfo,
-  Provider,
-  ReviewStrategy,
-} from '@devdigest/shared';
+import type { Agent, AgentSkillLink, CiFailOn, ModelInfo, Provider, ReviewStrategy } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
-import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { toAgentDto } from './helpers.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -113,30 +105,20 @@ export class AgentsService {
   }
 
   /**
-   * Config history for an agent, newest version first. Workspace-scoped: returns
-   * undefined when the agent isn't in this workspace (the route maps that to 404)
-   * so version snapshots can't be read across tenants.
+   * Persist an ordered list of repo-relative markdown paths as the agent's
+   * attached context documents. Does NOT bump version (AC-14). Array order IS
+   * the attach order (AC-10). Returns the updated Agent DTO, or undefined if
+   * the agent is not found in the workspace.
    */
-  async listVersions(workspaceId: string, agentId: string): Promise<AgentVersion[] | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
-    if (!agent) return undefined;
-    const rows = await this.repo.listVersions(agentId);
-    return rows.map(toAgentVersionDto);
-  }
-
-  /**
-   * A single config snapshot for an agent. Returns undefined when the agent isn't
-   * in this workspace OR that version was never recorded (route → 404).
-   */
-  async getVersion(
+  async setAttachedDocs(
     workspaceId: string,
-    agentId: string,
-    version: number,
-  ): Promise<AgentVersion | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
-    if (!agent) return undefined;
-    const row = await this.repo.getVersion(agentId, version);
-    return row ? toAgentVersionDto(row) : undefined;
+    id: string,
+    paths: string[],
+  ): Promise<Agent | undefined> {
+    const row = await this.repo.setAttachedDocs(workspaceId, id, paths);
+    if (!row) return undefined;
+    const skillCount = await this.repo.skillCount(id);
+    return { ...toAgentDto(row), skill_count: skillCount };
   }
 
   /** Linked skills for an agent as AgentSkillLink[] (ordered). */

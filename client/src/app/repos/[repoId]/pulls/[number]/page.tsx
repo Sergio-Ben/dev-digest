@@ -33,7 +33,8 @@ export default function PRDetailPage() {
   // The route is keyed by PR number, but every PR API is keyed by the row's
   // uuid — resolve number → uuid via the (cached) pulls list before fetching.
   const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
-  const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
+  const prListRow = pulls?.find((p) => p.number === Number(number));
+  const prId = prListRow?.id ?? null;
   const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
@@ -167,6 +168,12 @@ export default function PRDetailPage() {
             changedPaths={pr.files.map((f) => f.path)}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            // From the pulls LIST row, not `pr` (the single-PR detail fetch)
+            // — the detail endpoint doesn't populate score/cost_usd even
+            // though PrDetail's type technically allows it; the list
+            // endpoint is the only one that actually computes them.
+            score={prListRow?.score ?? null}
+            costUsd={prListRow?.cost_usd ?? null}
             onOpenFileLine={openFileLine}
           />
         )}

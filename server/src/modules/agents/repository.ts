@@ -246,6 +246,26 @@ export class AgentsRepository {
   }
 
   /**
+   * Persist an ordered list of repo-relative markdown paths as the agent's
+   * attached context documents. ONLY updates `attached_doc_paths` — never
+   * touches `version` or triggers a version snapshot (AC-14). Array order IS
+   * the attach order (AC-10). Returns the updated row, or undefined if the
+   * agent is not found in the workspace.
+   */
+  async setAttachedDocs(
+    workspaceId: string,
+    id: string,
+    paths: string[],
+  ): Promise<AgentRow | undefined> {
+    const [row] = await this.db
+      .update(t.agents)
+      .set({ attachedDocPaths: paths })
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
+      .returning();
+    return row;
+  }
+
+  /**
    * Replace the full set of linked skills for an agent with `skillIds`, assigning
    * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
    * the list are unlinked.

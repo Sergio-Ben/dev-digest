@@ -45,10 +45,6 @@ export type WorkflowCase =
       skill: string;
       shouldActivate: boolean;
       maxTurns?: number;
-      // Whether a model spontaneously invokes the Skill tool (vs. performing the action directly)
-      // is behaviour-shaped and model-dependent — the README treats activation as "indicative, not
-      // blocking". Set this to record a mismatch as a ⚠ warning instead of failing the test.
-      indicative?: boolean;
     }
   | {
       kind: "contrast";
@@ -138,16 +134,11 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
       } else if (c.kind === "activation") {
         const result = await workflowTask(c.prompt, { maxTurns: c.maxTurns });
         logTrace(c.name, result);
-        const got = activated(result, c.skill);
         try {
-          const detail = `skills: ${result.skillsInvoked.join(", ") || "(none)"} | reads: ${result.filesRead.join(", ")}`;
-          if (c.indicative && got !== c.shouldActivate) {
-            // Behaviour-shaped miss: the model did the work without invoking the Skill tool (or vice
-            // versa). Record it as a warning so the signal is visible without failing the gate.
-            console.warn(`⚠ indicative activation miss [${c.name}]: expected ${c.shouldActivate}, got ${got} — ${detail}`);
-          } else {
-            expect(got, detail).toBe(c.shouldActivate);
-          }
+          expect(
+            activated(result, c.skill),
+            `skills: ${result.skillsInvoked.join(", ")} | reads: ${result.filesRead.join(", ")}`,
+          ).toBe(c.shouldActivate);
         } finally {
           record(c.name, { result });
         }

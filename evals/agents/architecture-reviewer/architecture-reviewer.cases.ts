@@ -51,7 +51,7 @@ export const cases: AgentCase[] = [
     kind: "quality",
     prompt: REVIEW_PROMPT,
     practices: [
-      "does not raise a runtime-bug, null-safety, or security finding about the optional `reply?: FastifyReply` parameter — citing it as part of the same inward-only-dependencies layering violation (domain signature referencing a framework type) is correct and expected, not a fabrication",
+      "does not invent an architecture-contract violation for the optional `reply?: FastifyReply` parameter beyond the inward-only-dependencies import issue itself (no runtime bug/security finding fabricated as an architecture rule)",
       "stays scoped to structural/layering/DI findings and does not comment on naming, style, or test coverage",
     ],
     threshold: 1.0,

@@ -6,7 +6,7 @@
  */
 
 import { EVAL_JUDGE_MODEL } from "../config.js";
-import { runClaude } from "../runtime/run-claude.js";
+import { runContent } from "../runtime/dispatch.js";
 
 const JUDGE_RUBRIC =
   "You are a strict, blind evaluator. Given an OUTPUT and a list of PRACTICES, judge each " +
@@ -23,21 +23,48 @@ export interface Verdict {
   score: number;
 }
 
-function parseVerdict(text: string): Verdict["results"] {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) throw new Error(`judge returned no JSON: ${text.slice(0, 200)}`);
-  const obj = JSON.parse(text.slice(start, end + 1));
-  if (!Array.isArray(obj.results)) throw new Error("judge JSON missing results[]");
-  return obj.results;
+/**
+ * Best-effort extraction of the verdict array from a judge reply. Cheap non-Anthropic models
+ * (DeepSeek, Gemini Flash) wrap the JSON in ```json fences or trail prose after it, and sometimes
+ * emit outright invalid JSON. Strip fences, take the outermost braces, and return null on any
+ * failure so the caller can retry rather than crash the whole test on a single flaky reply.
+ */
+function parseVerdict(text: string): Verdict["results"] | null {
+  const unfenced = text.replace(/```(?:json)?/gi, "");
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    const obj = JSON.parse(unfenced.slice(start, end + 1));
+    return Array.isArray(obj.results) ? obj.results : null;
+  } catch {
+    return null;
+  }
 }
 
-/** Judge an output against a list of practices. Model defaults to the stronger judge family. */
+/**
+ * Judge an output against a list of practices. Model defaults to the stronger judge family.
+ *
+ * The judge runs on whatever model EVAL_JUDGE_MODEL selects — including cheap ones that
+ * occasionally break their own JSON. On an unparseable reply we retry ONCE with an explicit
+ * "valid JSON only" correction (a different prompt yields a different completion even at
+ * temperature 0); only if that also fails do we surface the error.
+ */
 export async function llmJudge(output: string, practices: string[], model = EVAL_JUDGE_MODEL): Promise<Verdict> {
   const listed = practices.map((p, i) => `${i + 1}. ${p}`).join("\n");
   const prompt = `${JUDGE_RUBRIC}\n\n## PRACTICES\n${listed}\n\n## OUTPUT\n${output}\n\nReturn the JSON now.`;
-  const res = await runClaude(prompt, { allowedTools: [], maxTurns: 1, model });
-  const results = parseVerdict(res.text);
+
+  let res = await runContent(prompt, { allowedTools: [], maxTurns: 1, model });
+  let results = parseVerdict(res.text);
+  if (!results) {
+    const correction =
+      `${prompt}\n\nYour previous reply was NOT valid JSON. Reply with ONLY the minified JSON ` +
+      "object matching the schema — no markdown fences, no prose before or after.";
+    res = await runContent(correction, { allowedTools: [], maxTurns: 1, model });
+    results = parseVerdict(res.text);
+  }
+  if (!results) throw new Error(`judge returned no parseable JSON after retry: ${res.text.slice(0, 200)}`);
+
   const total = results.length || 1;
   const passed = results.filter((r) => r.passed).length;
   return { results, passed, total, score: passed / total };

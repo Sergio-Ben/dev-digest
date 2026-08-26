@@ -89,6 +89,50 @@ export class ReviewService {
     this.container.runBus.complete(runId);
   }
 
+  /**
+   * Rerun a completed review. Loads the original review's agent and PR,
+   * creates a new run with the same agent, and kicks off execution.
+   */
+  async rerunReview(
+    workspaceId: string,
+    reviewId: string,
+    logger?: Logger,
+  ): Promise<{ run_id: string; agent_id: string; agent_name: string }> {
+    // Load the original review to get agent ID and PR ID
+    const review = await this.repo.getReviewScoped(workspaceId, reviewId);
+    if (!review) throw new NotFoundError('Review not found');
+    if (!review.agentId) throw new AppError('invalid_review', 'Cannot rerun a review without an agent', 400);
+
+    // Load the PR and repo for the rerun
+    const pull = await this.repo.getPull(workspaceId, review.prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const repo = await this.repo.getRepo(pull.repoId);
+    if (!repo) throw new NotFoundError('Repo not found');
+
+    // Load the agent to verify it still exists and is enabled
+    const agent = await this.agents.getById(workspaceId, review.agentId);
+    if (!agent) throw new NotFoundError('Agent not found or disabled');
+
+    // Create a new run with the same agent
+    const runId = await this.repo.createAgentRun({
+      workspaceId,
+      agentId: agent.id,
+      prId: review.prId,
+      provider: agent.provider,
+      model: agent.model,
+    });
+
+    // Fire-and-forget: execute the new run in the background
+    void this.executor.executeRuns(workspaceId, pull, repo, [{ agent, runId }], logger).catch((err) => {
+      logger?.error(
+        { reviewId, runId, err: (err as Error).message },
+        'review: background rerun execution crashed',
+      );
+    });
+
+    return { run_id: runId, agent_id: agent.id, agent_name: agent.name };
+  }
+
   /** Reap runs left 'running' by a previous (now-dead) process. Called on boot. */
   async reapStaleRuns(): Promise<number> {
     return this.repo.reapStaleRunningRuns();

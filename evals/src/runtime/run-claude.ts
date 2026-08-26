@@ -36,6 +36,13 @@ export interface RunOptions {
   model?: string;
   /** ["project"] loads on-disk CLAUDE.md + skills/agents; default [] keeps the run isolated. */
   settingSources?: Array<"user" | "project" | "local">;
+  /**
+   * Early-stop hook. Called after every tool_use with the trace collected SO FAR; return true to
+   * end the session immediately. Lets a dispatch/trace case stop the moment its evidence is in
+   * (e.g. the subagent was launched) instead of waiting for a heavy nested subagent to finish.
+   * On an early stop the run is NOT an error and metrics reflect only what ran before the stop.
+   */
+  stopWhen?: (partial: Pick<Result, "subagents" | "filesRead" | "skillsInvoked" | "toolsUsed">) => boolean;
 }
 
 /** Run one headless Claude turn-loop and extract what it ACTUALLY did (not its prose). */
@@ -79,12 +86,19 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
   let durationMs = 0;
   let inputTokens = 0;
   let outputTokens = 0;
+  let stoppedEarly = false;
+  // Wall-clock fallback: on an early stop we break before the result message that carries
+  // duration_ms/usage, so those stay 0. Stamp duration ourselves, and accumulate output tokens
+  // off each assistant message, so an early-stopped case still reports meaningful metrics.
+  const startedAt = Date.now();
 
   // The SDK throws on an error result (e.g. max-turns). We still want the partial output
   // and the tool/subagent trace we collected, so catch and fall through with isError=true.
   try {
-    for await (const msg of query({ prompt, options })) {
+    loop: for await (const msg of query({ prompt, options })) {
       if (msg.type === "assistant") {
+        numTurns++;
+        outputTokens += (msg.message as any).usage?.output_tokens ?? 0;
         for (const block of msg.message.content as any[]) {
           if (block.type === "text") textParts.push(block.text);
           else if (block.type === "tool_use") {
@@ -102,6 +116,19 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
             if (block.name === "Skill") {
               const s = input.skill ?? input.command;
               if (s) skills.push(s);
+            }
+            // Evidence is in — break the loop before a heavy nested subagent runs to completion.
+            // Breaking the async iterator triggers its return()/abort, tearing down the subprocess.
+            if (
+              opts.stopWhen?.({
+                subagents: [...new Set(subagents)],
+                filesRead: reads,
+                skillsInvoked: [...new Set(skills)],
+                toolsUsed: [...new Set(tools)],
+              })
+            ) {
+              stoppedEarly = true;
+              break loop;
             }
           }
         }
@@ -121,6 +148,9 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
       throw err; // nothing usable collected — surface the failure
     }
   }
+
+  // Early stop never reached the result message, so fall back to the wall-clock duration.
+  if (stoppedEarly && durationMs === 0) durationMs = Date.now() - startedAt;
 
   return {
     text: resultText || textParts.join("\n"),

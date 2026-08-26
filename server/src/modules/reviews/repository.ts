@@ -68,6 +68,10 @@ export class ReviewRepository {
     return reviewRepo.getReview(this.db, reviewId);
   }
 
+  getReviewScoped(workspaceId: string, reviewId: string): Promise<ReviewRow | undefined> {
+    return reviewRepo.getReviewScoped(this.db, workspaceId, reviewId);
+  }
+
   /** In-flight runs for a PR (status='running') — the server-side source of
    *  truth for "which agents are running now". Joined with the agent name. */
   activeRunsForPull(

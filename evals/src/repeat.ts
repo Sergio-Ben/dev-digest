@@ -10,13 +10,44 @@
  * with `pnpm eval:delta baseline candidate`.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { GREEN, RED, DIM, RESET, rateColor } from "./ansi.js";
 import { gitInfo } from "./git.js";
 import { countTests, runVitestOnce } from "./run-vitest.js";
 import { RESULTS_DIR } from "./artifacts/paths.js";
 import { aggregate, loadRecords, recordCount, type NodeAggregate, type Stats } from "./records/stats.js";
+
+/**
+ * vitest treats a path pattern as a SUBSTRING filter, so a bare `agents/architecture-reviewer`
+ * also matches `agents/architecture-reviewer-lite/...` and silently doubles the run with the
+ * wrong agent. Expand any positional arg that points at a directory into the exact `.eval.ts`
+ * file paths inside it (which are NOT substrings of a sibling directory's files), so an A/B stays
+ * a clean A/B. Args that already name a file, or that don't resolve to a directory, pass through.
+ */
+function resolveEvalPatterns(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    // Preserve flags and the value that follows a value-taking flag (e.g. -t <pattern>).
+    if (a.startsWith("-")) {
+      out.push(a);
+      if (a === "-t" || a === "--testNamePattern") out.push(args[++i]);
+      continue;
+    }
+    if (existsSync(a) && statSync(a).isDirectory()) {
+      const evals = readdirSync(a)
+        .filter((f) => f.endsWith(".eval.ts"))
+        .map((f) => join(a, f));
+      if (evals.length) {
+        out.push(...evals);
+        continue;
+      }
+    }
+    out.push(a);
+  }
+  return out;
+}
 
 const pct = (rate: number) => `${Math.round(rate * 100)}%`;
 const statLine = (label: string, s: Stats) =>
@@ -39,7 +70,10 @@ function printTest(agg: NodeAggregate, times: number): void {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  let times = 5;
+  // Cap runs at 2 to keep token spend bounded — LLM sessions are expensive, and 2 runs is enough
+  // to catch a blatantly flaky case. Bump MAX_TIMES if you deliberately want a fuller stability run.
+  const MAX_TIMES = 2;
+  let times = MAX_TIMES;
   let label: string | undefined;
   const vitestArgs: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -49,9 +83,14 @@ async function main(): Promise<void> {
     else vitestArgs.push(a);
   }
   if (vitestArgs.length === 0 || !Number.isFinite(times) || times < 1) {
-    console.error("usage: pnpm eval:repeat <vitest pattern> [-n times] [-t testNamePattern] [--label name]");
+    console.error("usage: pnpm eval:repeat <vitest pattern> [-n times<=2] [-t testNamePattern] [--label name]");
     process.exit(1);
   }
+  if (times > MAX_TIMES) {
+    console.error(`  ${DIM}capping -n ${times} → ${MAX_TIMES} (token economy)${RESET}`);
+    times = MAX_TIMES;
+  }
+  vitestArgs.splice(0, vitestArgs.length, ...resolveEvalPatterns(vitestArgs));
 
   const startLine = recordCount();
   let line = startLine;

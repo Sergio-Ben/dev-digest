@@ -25,6 +25,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 2026-06-22 — `npm run typecheck` in reviewer-core fails with "Invalid character" errors in `server/src/vendor/shared/contracts/platform.ts` if that file contains smart/curly apostrophes (U+2018/U+2019) inside a single-quoted TypeScript string. TypeScript treats the curly quote as a non-ASCII character, not a string delimiter match, causing a cascade of parse errors. Fix: replace the smart apostrophe with a regular ASCII apostrophe (') or switch the string delimiter to double-quotes. ref: server/src/vendor/shared/contracts/platform.ts:54
 
+2026-07-03 — Embedding model changes in `buildEmbedding()` (src/embeddings.ts) must trigger a server-side pgvector column dimension migration. When the embedding provider changes (e.g., OpenAI → Anthropic), the vector dimension N changes. Old vectors stored with dimension N do NOT automatically match new vectors with dimension M ≠ N. The database silently fails all vector distance computations on mismatched dimensions — queries return 0 rows instead of throwing an error. This is invisible until you test a similarity search and get 0 results. See server/insights/INSIGHTS.md:80 for the full migration pattern and recovery steps. ref: src/embeddings.ts:1
+
 ## Session Notes
 
 2026-06-22 — T1 intent layer prompt seam: added `intent?: string` to `PromptParts` and `ReviewInput`, added `## Intent` section rendering between callers and diff in `assemblePrompt`, threaded `intent` through `promptParts` in `reviewPullRequest`. Also fixed pre-existing smart-apostrophe parse error in `platform.ts:54` that blocked all typecheck. Files: reviewer-core/src/prompt.ts, reviewer-core/src/review/run.ts, server/src/vendor/shared/contracts/platform.ts.

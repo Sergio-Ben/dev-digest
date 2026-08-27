@@ -37,6 +37,23 @@ export function useCreateSkill() {
   });
 }
 
+export interface ImportSkillInput {
+  name: string;
+  body: string;
+  source?: SkillSource;
+  description?: string;
+}
+
+/** Import a skill from an uploaded file's contents (POST /skills/import). */
+export function useImportSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportSkillInput) =>
+      api.post<Skill>("/skills/import", input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
+  });
+}
+
 export interface UpdateSkillInput {
   id: string;
   patch: Partial<Pick<Skill, "name" | "description" | "type" | "source" | "body" | "enabled">> & { version_message?: string };

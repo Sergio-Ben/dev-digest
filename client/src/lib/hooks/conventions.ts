@@ -88,3 +88,19 @@ export function useCreateSkillFromConventions(repoId: string | null | undefined)
     },
   });
 }
+
+export interface ImportSkillFromUrlInput {
+  url: string;
+  name: string;
+  description?: string;
+}
+
+/** Import a skill from a public URL (POST /skills/import-url). */
+export function useImportSkillFromUrl() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportSkillFromUrlInput) =>
+      api.post<Skill>("/skills/import-url", input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
+  });
+}

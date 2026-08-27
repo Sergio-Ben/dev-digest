@@ -3,7 +3,7 @@ import React from "react";
 import { FormField, TextInput, SelectInput, Textarea, Toggle, Button } from "@devdigest/ui";
 import type { Skill, SkillType } from "@devdigest/shared";
 import { useUpdateSkill } from "../../../../../../../lib/hooks/skills";
-import { useToast } from "../../../../../../../lib/toast";
+import { useToast } from "../../../../../../../lib/contexts/toast";
 
 const TYPE_OPTIONS = [
   { value: "rubric", label: "Rubric" },

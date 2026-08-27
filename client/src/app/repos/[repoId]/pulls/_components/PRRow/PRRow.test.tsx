@@ -60,10 +60,10 @@ const PR = (over: Partial<PrMeta>): PrMeta => ({
   ...over,
 });
 
-function renderRow(pr: PrMeta, repoFullName?: string) {
+function renderRow(pr: PrMeta) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <PRRow pr={pr} repoId="r1" repoFullName={repoFullName ?? null} />
+      <PRRow pr={pr} repoId="r1" />
     </NextIntlClientProvider>,
   );
 }
@@ -81,10 +81,7 @@ describe("PRRow — FINDINGS cell", () => {
 
   it("reveals the findings popover on hover", () => {
     mockReviews = [{ findings: [FINDING({ title: "Hardcoded Stripe secret key" })] }];
-    renderRow(
-      PR({ findings: { critical: 1, warning: 0, suggestion: 0 } }),
-      "acme/payments-api",
-    );
+    renderRow(PR({ findings: { critical: 1, warning: 0, suggestion: 0 } }));
     expect(screen.queryByText("Hardcoded Stripe secret key")).not.toBeInTheDocument();
     // Hover the FindingsCell wrapper (the chip's parent carries the handlers).
     const chip = screen.getByTitle("Critical");

@@ -7,7 +7,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { RunSummary, FindingRecord, Severity } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
@@ -38,10 +38,35 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+let findingSeq = 0;
+function finding(severity: Severity): FindingRecord {
+  return {
+    id: `rf${findingSeq++}`,
+    severity,
+    category: "security",
+    title: `${severity} finding`,
+    file: "src/config.ts",
+    start_line: 1,
+    end_line: 1,
+    rationale: "why",
+    suggestion: null,
+    confidence: 0.9,
+    kind: "finding",
+    trifecta_components: null,
+    evidence: null,
+    review_id: "r1",
+    accepted_at: null,
+    dismissed_at: null,
+  };
+}
+
+function renderRuns(
+  runs: RunSummary[],
+  findingsByRun?: Record<string, FindingRecord[]>,
+) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} onOpenTrace={() => {}} findingsByRun={findingsByRun} />
     </NextIntlClientProvider>,
   );
 }
@@ -90,52 +115,43 @@ describe("RunHistory — outcome badge", () => {
 });
 
 describe("RunHistory — per-severity chips", () => {
-  it("shows SeverityChip counts when findings_critical/warning/suggestion are set", () => {
-    renderRuns([
-      run({
-        status: "done",
-        findings_count: 6,
-        blockers: 2,
-        score: 45,
-        findings_critical: 2,
-        findings_warning: 3,
-        findings_suggestion: 1,
-      }),
-    ]);
+  // The severity counts come from RunFindingsCounts, which tallies each run's
+  // findings from the `findingsByRun` map (keyed by run_id) — not from the
+  // denormalized run-summary fields.
+  it("shows per-severity counts from the run's findings", () => {
+    renderRuns([run({ status: "done", findings_count: 6, blockers: 2, score: 45 })], {
+      "run-1": [
+        finding("CRITICAL"),
+        finding("CRITICAL"),
+        finding("WARNING"),
+        finding("WARNING"),
+        finding("WARNING"),
+        finding("SUGGESTION"),
+      ],
+    });
     expect(screen.getByText("2")).toBeInTheDocument(); // critical count
     expect(screen.getByText("3")).toBeInTheDocument(); // warning count
     expect(screen.getByText("1")).toBeInTheDocument(); // suggestion count
   });
 
-  it("shows no chips when all per-severity counts are null", () => {
-    const { container } = renderRuns([
-      run({
-        status: "done",
-        findings_count: 0,
-        blockers: 0,
-        score: 90,
-        findings_critical: null,
-        findings_warning: null,
-        findings_suggestion: null,
-      }),
-    ]);
-    // SeverityChip renders faded dots with opacity:0.2 — none should appear
-    const fadedDots = container.querySelectorAll('[style*="opacity: 0.2"]');
-    expect(fadedDots).toHaveLength(0);
+  it("shows no chips when the run has no findings", () => {
+    renderRuns([run({ status: "done", findings_count: 0, blockers: 0, score: 90 })]);
+    // RunFindingsCounts returns null when a run has no findings, so none of the
+    // severity chips (each titled by its level) render.
+    expect(screen.queryByTitle("Critical")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Warning")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Suggestion")).not.toBeInTheDocument();
   });
 
   it("shows only non-zero chips", () => {
-    renderRuns([
-      run({
-        status: "done",
-        findings_count: 4,
-        blockers: 4,
-        score: 20,
-        findings_critical: 4,
-        findings_warning: 0,
-        findings_suggestion: 0,
-      }),
-    ]);
+    renderRuns([run({ status: "done", findings_count: 4, blockers: 4, score: 22 })], {
+      "run-1": [
+        finding("CRITICAL"),
+        finding("CRITICAL"),
+        finding("CRITICAL"),
+        finding("CRITICAL"),
+      ],
+    });
     expect(screen.getByText("4")).toBeInTheDocument();
     // warning=0, suggestion=0 → no chips for those counts
     expect(screen.queryAllByText("0")).toHaveLength(0);

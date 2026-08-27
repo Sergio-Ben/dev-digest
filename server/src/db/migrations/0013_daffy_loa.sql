@@ -1,1 +1,0 @@
-ALTER TABLE "conventions" DROP COLUMN "accepted";

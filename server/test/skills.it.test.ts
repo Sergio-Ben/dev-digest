@@ -237,9 +237,12 @@ d("Skills CRUD + versioning (Testcontainers)", () => {
     });
     expect(res.statusCode).toBe(200);
     const stats = res.json();
-    expect(typeof stats.agent_count).toBe("number");
-    expect(typeof stats.pull_frequency_pct).toBe("number");
-    expect(typeof stats.accept_rate_pct).toBe("number");
+    // Shape matches the SkillStats contract (@devdigest/shared).
+    expect(typeof stats.used_by_count).toBe("number");
+    expect(Array.isArray(stats.agents)).toBe(true);
+    expect(typeof stats.version_count).toBe("number");
+    expect(typeof stats.findings_by_category).toBe("object");
+    expect(typeof stats.findings_last_30d).toBe("number");
     await app.close();
   });
 

@@ -1,1 +1,0 @@
-ALTER TABLE "agents" ADD COLUMN "ci_fail_on" text DEFAULT 'critical' NOT NULL;

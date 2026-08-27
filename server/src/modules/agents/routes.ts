@@ -10,6 +10,13 @@ import { AgentsService } from './service.js';
 /** `/providers/:id` addresses a provider by name, not a uuid. */
 const ProviderParams = z.object({ id: Provider });
 
+/** `/agents/:id/versions/:version` — version is a positive integer in the path.
+ *  Coercion makes a non-numeric segment fail validation (→ 422, not 404). */
+const VersionParams = z.object({
+  id: z.string().uuid(),
+  version: z.coerce.number().int().positive(),
+});
+
 /**
  * A2 — agents module (owner A2).
  *   GET    /agents                       → list (workspace-scoped)
@@ -176,4 +183,18 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
       return service.promoteToVersion(workspaceId, req.params.id, req.body.version);
     },
   );
+
+  app.get('/agents/:id/versions', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const versions = await service.listVersions(workspaceId, req.params.id);
+    if (!versions) throw new NotFoundError('Agent not found');
+    return versions;
+  });
+
+  app.get('/agents/:id/versions/:version', { schema: { params: VersionParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const version = await service.getVersion(workspaceId, req.params.id, req.params.version);
+    if (!version) throw new NotFoundError('Agent version not found');
+    return version;
+  });
 }

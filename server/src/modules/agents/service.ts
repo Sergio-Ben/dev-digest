@@ -1,8 +1,8 @@
 import type { Container } from '../../platform/container.js';
-import type { Agent, AgentSkillLink, CiFailOn, ModelInfo, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Agent, AgentSkillLink, AgentVersion, CiFailOn, ModelInfo, Provider, ReviewStrategy } from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
-import { toAgentDto } from './helpers.js';
+import { toAgentDto, toAgentVersionDto } from './helpers.js';
 import { NotFoundError } from '../../platform/errors.js';
 
 /**
@@ -66,6 +66,33 @@ export class AgentsService {
   /** Delete an agent (and its versions/skill-links, via cascade). */
   async delete(workspaceId: string, id: string): Promise<boolean> {
     return this.repo.deleteById(workspaceId, id);
+  }
+
+  /**
+   * Config snapshots for an agent, newest version first. Workspace-scoped:
+   * returns `undefined` (→ 404 at the route) when the agent isn't in this
+   * workspace, since `repo.listVersions()` is keyed by agent id alone.
+   */
+  async listVersions(workspaceId: string, id: string): Promise<AgentVersion[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, id);
+    if (!agent) return undefined;
+    const rows = await this.repo.listVersions(id);
+    return rows.map(toAgentVersionDto);
+  }
+
+  /**
+   * A single config snapshot for an agent. `undefined` (→ 404) when the agent
+   * isn't in this workspace OR that version was never recorded.
+   */
+  async getVersion(
+    workspaceId: string,
+    id: string,
+    version: number,
+  ): Promise<AgentVersion | undefined> {
+    const agent = await this.repo.getById(workspaceId, id);
+    if (!agent) return undefined;
+    const row = await this.repo.getVersion(id, version);
+    return row ? toAgentVersionDto(row) : undefined;
   }
 
   async create(workspaceId: string, input: CreateAgentInput, userId?: string): Promise<Agent> {
@@ -196,6 +223,14 @@ export class AgentsService {
     const outputSchemaChanged =
       JSON.stringify(config.output_schema ?? null) !== JSON.stringify(agent.outputSchema ?? null);
 
+    // Re-apply the snapshot's skill links FIRST — update() does NOT touch
+    // agent_skills, and the new version it snapshots records the agent's LIVE
+    // skills (repository.snapshotVersion reads them). Applying set A before the
+    // config bump means the forward v(N+1) snapshot captures skills = A, not
+    // whatever was linked right before promoting.
+    const links = await this.setSkills(workspaceId, id, config.skills);
+    if (!links) throw new NotFoundError('Agent not found');
+
     const updated = await this.update(workspaceId, id, {
       provider: config.provider,
       model: config.model,
@@ -206,10 +241,6 @@ export class AgentsService {
       repo_intel: config.repo_intel,
     });
     if (!updated) throw new NotFoundError('Agent not found');
-
-    // Re-apply the snapshot's skill links — update() does NOT touch agent_skills.
-    const links = await this.setSkills(workspaceId, id, config.skills);
-    if (!links) throw new NotFoundError('Agent not found');
 
     // Re-fetch so the returned DTO carries an accurate skill_count (update()'s
     // own return value doesn't compute it).

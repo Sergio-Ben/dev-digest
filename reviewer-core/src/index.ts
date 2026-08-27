@@ -57,3 +57,14 @@ export {
 // The single OpenAI-compatible structured provider (OpenRouter), shared by the
 // CI runner and the server's openrouter path. Owns session grouping + guards.
 export { OpenRouterProvider, type OpenRouterProviderOptions } from './llm/openrouter.js';
+
+// Pure deterministic eval scorer — recall/precision/citation-accuracy/pass.
+export {
+  matches,
+  scoreCase,
+  aggregateBatch,
+  type ExpectedFinding,
+  type CaseScore,
+  type BatchCaseInput,
+  type AggregatedBatch,
+} from './eval/score.js';

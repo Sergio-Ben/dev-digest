@@ -89,3 +89,28 @@ export function useProviderModels(provider: Provider | null | undefined) {
     staleTime: 5 * 60_000,
   });
 }
+
+export interface PromoteAgentVersionInput {
+  id: string;
+  version: number;
+}
+
+/**
+ * Promote vN (Q5) — reset an agent's live config to a past version's snapshot
+ * (used by the eval Compare view's "Promote vN" control). Invalidates both the
+ * agent queries and the eval-dashboard queries, since promoting changes what
+ * the dashboard's "current" version/metrics point at.
+ */
+export function usePromoteAgentVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: PromoteAgentVersionInput) =>
+      api.post<Agent>(`/agents/${id}/promote`, { version }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.setQueryData(["agent", data.id], data);
+      qc.invalidateQueries({ queryKey: ["eval-dashboard", data.id] });
+      qc.invalidateQueries({ queryKey: ["eval-dashboard-cross"] });
+    },
+  });
+}

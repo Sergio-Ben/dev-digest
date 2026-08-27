@@ -26,6 +26,7 @@ import {
 } from "./constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/utils/githubUrls";
+import { useEvalCaseFromFinding } from "../../../../../../../lib/hooks/evals";
 import { s } from "./styles";
 
 export function FindingCard({
@@ -52,6 +53,11 @@ export function FindingCard({
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? targeted ?? false);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  // Scoped to this finding's own id (mirrors `useDeleteReview(prId)`): each
+  // card instance owns its own "turn into eval case" mutation state. AC-4
+  // ("decide first") is enforced server-side — this just calls through and
+  // surfaces whatever the server responds with, success or rejection.
+  const evalCase = useEvalCaseFromFinding(f.id);
 
   // Deep-link arrival: the card may mount long after the URL changed (the tab
   // switches, the accordion opens, then this renders), so drive it off the
@@ -129,7 +135,30 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="FlaskConical"
+              disabled={pending || evalCase.isPending}
+              loading={evalCase.isPending}
+              onClick={() => evalCase.mutate()}
+            >
+              {t("finding.turnIntoEvalCase")}
+            </Button>
           </div>
+
+          {evalCase.isError && (
+            <div role="alert" style={s.evalCaseError}>
+              {evalCase.error instanceof Error
+                ? evalCase.error.message
+                : t("finding.evalCaseError")}
+            </div>
+          )}
+          {evalCase.isSuccess && (
+            <div role="status" style={s.evalCaseSuccess}>
+              {t("finding.evalCaseCreated")}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -85,6 +85,13 @@
       "when": 1782780841402,
       "tag": "0011_loud_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787818520685,
+      "tag": "0012_equal_arachne",
+      "breakpoints": true
     }
   ]
 }

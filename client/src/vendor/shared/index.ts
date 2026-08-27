@@ -22,6 +22,7 @@ export * from './contracts/trace';
 export * from './contracts/platform';
 export * from './contracts/why';
 export * from './contracts/eval-ci';
+export * from './contracts/eval-batch';
 export * from './contracts/observability';
 export * from './contracts/productionize';
 export * from './contracts/project-context';

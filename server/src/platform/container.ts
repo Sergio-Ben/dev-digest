@@ -29,6 +29,7 @@ import { AgentsRepository } from '../modules/agents/repository.js';
 import { SkillsRepository } from '../modules/skills/repository.js';
 import { ConventionsRepository } from '../modules/conventions/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { EvalsRepository } from '../modules/evals/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -80,6 +81,7 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _skillsRepo?: SkillsRepository;
   private _conventionsRepo?: ConventionsRepository;
+  private _evalsRepo?: EvalsRepository;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -121,6 +123,10 @@ export class Container {
 
   get conventionsRepo(): ConventionsRepository {
     return (this._conventionsRepo ??= new ConventionsRepository(this.db));
+  }
+
+  get evalsRepo(): EvalsRepository {
+    return (this._evalsRepo ??= new EvalsRepository(this.db));
   }
 
   get reviewRepo(): ReviewRepository {

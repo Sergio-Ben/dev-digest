@@ -1,6 +1,6 @@
 {
-  "id": "b972fcb2-ad57-49b7-a5a8-d98ee4869a18",
-  "prevId": "2a13542a-6b9f-4c29-980f-cdf122829a12",
+  "id": "10ddb052-553f-45fc-a311-dbcbe51964bf",
+  "prevId": "98a9d2a6-db15-46db-903c-bd40ba64defc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1037,12 +1037,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1147,6 +1141,20 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "attached_doc_paths": {
+          "name": "attached_doc_paths",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "threat_level": {
+          "name": "threat_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unknown'"
         },
         "created_at": {
           "name": "created_at",
@@ -1379,6 +1387,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "attached_doc_paths": {
+          "name": "attached_doc_paths",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "enabled": {
           "name": "enabled",
@@ -1637,13 +1652,6 @@
           "type": "double precision",
           "primaryKey": false,
           "notNull": false
-        },
-        "accepted": {
-          "name": "accepted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "status": {
           "name": "status",
@@ -2591,9 +2599,37 @@
           "type": "double precision",
           "primaryKey": false,
           "notNull": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_version": {
+          "name": "agent_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "eval_runs_batch_idx": {
+          "name": "eval_runs_batch_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "eval_runs_case_id_eval_cases_id_fk": {
           "name": "eval_runs_case_id_eval_cases_id_fk",

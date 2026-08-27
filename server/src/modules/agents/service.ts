@@ -1,7 +1,9 @@
 import type { Container } from '../../platform/container.js';
 import type { Agent, AgentSkillLink, CiFailOn, ModelInfo, Provider, ReviewStrategy } from '@devdigest/shared';
+import { AgentVersionConfig } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto } from './helpers.js';
+import { NotFoundError } from '../../platform/errors.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -155,6 +157,65 @@ export class AgentsService {
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
     return this.skillLinks(agentId);
+  }
+
+  /**
+   * Promote vN (Q5) — reset the agent's LIVE config to a past `agent_versions`
+   * snapshot. Non-destructive / forward-only: it does NOT rewrite the snapshot
+   * row or any historical version. Instead it feeds the snapshot's config back
+   * through the existing `update()`, which bumps to a brand-new version whose
+   * config equals vN's and snapshots it again (so history keeps growing
+   * forward, never mutated in place).
+   *
+   * Throws `NotFoundError` (AC-40) when the snapshot doesn't exist OR the
+   * agent isn't in this workspace.
+   *
+   * Critical trap (verified in code): `update()` never touches `agent_skills`,
+   * so the snapshot's skill links must be re-applied explicitly via
+   * `setSkills()` — otherwise the promoted agent silently keeps whatever
+   * skills happen to be linked right now.
+   */
+  async promoteToVersion(workspaceId: string, id: string, version: number): Promise<Agent> {
+    const snapshot = await this.repo.getVersion(id, version);
+    if (!snapshot) throw new NotFoundError('Agent version not found');
+
+    // Workspace-scope check: getVersion() is not workspace-scoped by itself.
+    const agent = await this.repo.getById(workspaceId, id);
+    if (!agent) throw new NotFoundError('Agent not found');
+
+    const config = AgentVersionConfig.parse(snapshot.configJson);
+
+    // update()/isConfigChange() bump the version on ANY explicitly-passed
+    // output_schema (it isn't deep-compared — see helpers.ts#isConfigChange),
+    // so it's only included in the patch when it actually differs from the
+    // live agent's current output_schema. That keeps the promote call
+    // idempotent: when every field (including output_schema) already equals
+    // the live config, isConfigChange() sees no delta and update() doesn't
+    // bump the version — the call still succeeds and returns the current
+    // agent.
+    const outputSchemaChanged =
+      JSON.stringify(config.output_schema ?? null) !== JSON.stringify(agent.outputSchema ?? null);
+
+    const updated = await this.update(workspaceId, id, {
+      provider: config.provider,
+      model: config.model,
+      system_prompt: config.system_prompt,
+      ...(outputSchemaChanged ? { output_schema: config.output_schema } : {}),
+      strategy: config.strategy,
+      ci_fail_on: config.ci_fail_on,
+      repo_intel: config.repo_intel,
+    });
+    if (!updated) throw new NotFoundError('Agent not found');
+
+    // Re-apply the snapshot's skill links — update() does NOT touch agent_skills.
+    const links = await this.setSkills(workspaceId, id, config.skills);
+    if (!links) throw new NotFoundError('Agent not found');
+
+    // Re-fetch so the returned DTO carries an accurate skill_count (update()'s
+    // own return value doesn't compute it).
+    const fresh = await this.get(workspaceId, id);
+    if (!fresh) throw new NotFoundError('Agent not found');
+    return fresh;
   }
 
   /**

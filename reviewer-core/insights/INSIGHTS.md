@@ -15,6 +15,10 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 ## Codebase Patterns
 
+2026-08-27 — `aggregateBatch` (T3, `src/eval/score.ts`) needs raw per-case counts, not just per-case ratios, because AC-21/22/23 define recall/precision/citation-accuracy as counts summed across ALL cases then divided (true micro-average), not an average of per-case fractions. `scoreCase` therefore returns a `CaseScore` richer than the plan's literal `{recall, precision, citation_accuracy, pass}` — it also carries `expectedCount`/`matchedExpectedCount`/`producedCount`/`matchedProducedCount`/`survivedCount`/`candidateCount` so `aggregateBatch` can sum before dividing. ref: reviewer-core/src/eval/score.ts:34-119
+
+2026-08-27 — `ExpectedFinding` is defined locally in `reviewer-core/src/eval/score.ts` (mirroring T1's `server/src/vendor/shared/contracts/eval-batch.ts`) because that contract exists in `contracts/eval-batch.ts` but is NOT re-exported from the shared barrel (`server/src/vendor/shared/index.ts`) yet. Swap to the real import once the barrel export lands — check `grep ExpectedFinding server/src/vendor/shared/index.ts` first. ref: reviewer-core/src/eval/score.ts:15-30
+
 2026-06-22 — New `PromptParts` fields should be added between `callers` and `diff` (not after `diff`) when the intent is to provide context before the diff. The rendering order in `assemblePrompt` follows the field declaration order in `PromptParts` conceptually: skills → memory → repoMap → specs → callers → [new context] → diff. ref: reviewer-core/src/prompt.ts:111
 
 2026-06-22 — `INJECTION_GUARD` already names "derived intent/scope" as untrusted content. Do NOT add new text about intent to the guard — it would duplicate the existing coverage and bloat the system prompt on every review. ref: reviewer-core/src/prompt.ts:16

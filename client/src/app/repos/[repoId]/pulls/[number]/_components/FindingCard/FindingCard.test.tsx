@@ -121,4 +121,20 @@ describe("FindingCard — turn into eval case (T13, AC-4)", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/decide first/i);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
+
+  it("persists the captured state across a reload: a finding carrying eval_case_id shows the button as done and non-clickable", () => {
+    const mutate = mockEvalCase();
+    // A finding the server already reports as captured (`eval_case_id`) — i.e.
+    // exactly what a reload after a successful capture returns.
+    const CAPTURED: FindingRecord = { ...DECIDED_FINDING, eval_case_id: "ec-1" };
+    renderWithIntl(<FindingCard f={CAPTURED} defaultExpanded onAction={() => {}} />);
+
+    const button = screen.getByRole("button", { name: "Turn into eval case" });
+    expect(button).toBeDisabled();
+    // Persisted "eval case" tag + status, without ever re-firing the mutation.
+    expect(screen.getByText("eval case")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Eval case created");
+    fireEvent.click(button);
+    expect(mutate).not.toHaveBeenCalled();
+  });
 });

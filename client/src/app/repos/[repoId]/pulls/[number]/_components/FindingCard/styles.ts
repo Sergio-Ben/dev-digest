@@ -66,6 +66,11 @@ export const s = {
     fontWeight: 600,
     color: "var(--text-muted)",
   } satisfies CSSProperties,
+  evalCaseTag: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--accent)",
+  } satisfies CSSProperties,
   metaRow: {
     display: "flex",
     alignItems: "center",

@@ -10,12 +10,20 @@ import { Intent, SmartDiff } from './brief';
  * Distinct from `Finding` (the raw LLM-output unit): `FindingRecord` adds the
  * persisted row identity + action timestamps so the UI can render accept/dismiss
  * state and the `review_id` it belongs to.
+ *
+ * `eval_case_id` is the id of the eval case this finding was captured into
+ * ("Turn into eval case"), or null/absent when it hasn't been captured. It is
+ * derived server-side by matching the agent's eval cases the SAME way capture
+ * is idempotent (by `source_finding_id` or the derived case name), so the UI
+ * can persist the captured state across a reload instead of re-offering the
+ * action. Optional so pre-existing callers/fixtures need not set it.
  */
 
 export const FindingRecord = Finding.extend({
   review_id: z.string(),
   accepted_at: z.string().nullable(),
   dismissed_at: z.string().nullable(),
+  eval_case_id: z.string().nullish(),
 });
 export type FindingRecord = z.infer<typeof FindingRecord>;
 

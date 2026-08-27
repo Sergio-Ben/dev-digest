@@ -11,6 +11,23 @@ import type { EvalBatchAggregateRow, EvalCaseRow, EvalRunRow } from './repositor
  * and this file already has no I/O of its own.
  */
 
+/**
+ * Derived, human-visible name of the eval case captured FROM a finding:
+ * `"<title> (<file>:<line>)"`. This is the SAME identity `CaptureService` uses
+ * as its idempotency key and that the reviews read path matches on to decide
+ * whether a finding is already captured, so both agree on "captured" — keep the
+ * two in lockstep by importing this rather than re-deriving the string.
+ */
+export function evalCaseNameFromFinding(f: {
+  title: string;
+  file: string;
+  startLine: number;
+  endLine: number;
+}): string {
+  const lineLabel = f.endLine !== f.startLine ? `${f.startLine}-${f.endLine}` : `${f.startLine}`;
+  return `${f.title} (${f.file}:${lineLabel})`;
+}
+
 /** Map a persisted `eval_cases` row to the public `EvalCase` DTO. */
 export function toEvalCaseDto(row: EvalCaseRow): EvalCase {
   return {

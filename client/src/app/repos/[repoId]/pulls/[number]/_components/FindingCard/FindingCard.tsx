@@ -77,6 +77,27 @@ export function FindingCard({
   const dismissed = !!f.dismissed_at;
   const muted = accepted || dismissed;
 
+  // "Captured into an eval case" is persisted on the finding (`eval_case_id`,
+  // derived server-side) so it survives a reload — OR it's the result of the
+  // capture we just fired this session, so the button flips immediately without
+  // waiting for the reviews query to refetch. `undecided` is a success too but
+  // creates nothing, so it must NOT count as captured. (The `evalCase.isSuccess`
+  // guard is what narrows `evalCase.data` off the mutation's discriminated union.)
+  const justCaptured =
+    evalCase.isSuccess &&
+    (evalCase.data.created === true ||
+      (evalCase.data.created === false && evalCase.data.reason === "exists"));
+  const captured = !!f.eval_case_id || justCaptured;
+  const undecidedMessage =
+    evalCase.isSuccess && evalCase.data.created === false && evalCase.data.reason === "undecided"
+      ? evalCase.data.message
+      : null;
+  const capturedMessage = !captured
+    ? null
+    : evalCase.isSuccess && evalCase.data.created === false && evalCase.data.reason === "exists"
+      ? t("finding.evalCaseExists")
+      : t("finding.evalCaseCreated");
+
   return (
     <div ref={rootRef} data-finding-id={f.id} style={s.card(!!focused, sevColor, muted, !!targeted)}>
       <div onClick={() => setExpanded((e) => !e)} style={s.header}>
@@ -89,6 +110,7 @@ export function FindingCard({
             <CategoryTag category={f.category as Category} />
             {accepted && <span style={s.acceptedTag}>{t("finding.accepted")}</span>}
             {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
+            {captured && <span style={s.evalCaseTag}>{t("finding.evalCaseTag")}</span>}
           </div>
           <div style={s.metaRow}>
             <MonoLink href={fileHref}>
@@ -139,8 +161,11 @@ export function FindingCard({
               kind="ghost"
               size="sm"
               icon="FlaskConical"
-              disabled={pending || evalCase.isPending}
+              // Already captured → keep it visibly "done" and non-repeatable,
+              // the same way accept/dismiss reflect their persisted state.
+              disabled={pending || evalCase.isPending || captured}
               loading={evalCase.isPending}
+              active={captured}
               onClick={() => evalCase.mutate()}
             >
               {t("finding.turnIntoEvalCase")}
@@ -154,13 +179,14 @@ export function FindingCard({
                 : t("finding.evalCaseError")}
             </div>
           )}
-          {evalCase.isSuccess && (
+          {undecidedMessage && (
             <div role="status" style={s.evalCaseSuccess}>
-              {!evalCase.data.created && evalCase.data.reason === "undecided"
-                ? evalCase.data.message
-                : !evalCase.data.created && evalCase.data.reason === "exists"
-                  ? t("finding.evalCaseExists")
-                  : t("finding.evalCaseCreated")}
+              {undecidedMessage}
+            </div>
+          )}
+          {capturedMessage && (
+            <div role="status" style={s.evalCaseSuccess}>
+              {capturedMessage}
             </div>
           )}
         </div>

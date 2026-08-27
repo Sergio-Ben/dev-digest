@@ -1,7 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import { NotFoundError } from '../../platform/errors.js';
 import type { EvalCase } from '@devdigest/shared';
-import { toEvalCaseDto } from './helpers.js';
+import { toEvalCaseDto, evalCaseNameFromFinding } from './helpers.js';
 
 /**
  * T5 — capture-a-case-from-a-finding (Capability A). Turns a DECIDED review
@@ -74,7 +74,10 @@ export class CaptureService {
         ? `${finding.startLine}-${finding.endLine}`
         : `${finding.startLine}`;
 
-    const name = `${finding.title} (${finding.file}:${lineLabel})`;
+    // Same derived identity the reviews read path matches on (see
+    // `evalCaseNameFromFinding`) — keep them in lockstep so "already captured"
+    // in the UI means exactly "a repeat capture would return `exists`".
+    const name = evalCaseNameFromFinding(finding);
 
     // Idempotency: return the EXISTING case instead of inserting a duplicate
     // when this finding was already captured. The finding's own id is NOT a

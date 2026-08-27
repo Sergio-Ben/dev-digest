@@ -300,4 +300,49 @@ d('POST /findings/:id/eval-case (T5 — capture)', () => {
       await app.close();
     },
   );
+
+  it(
+    'surfaces eval_case_id on GET /pulls/:id/reviews once a finding is captured, so the ' +
+      'client persists the "captured" state across a reload instead of re-offering the action',
+    async () => {
+      const app = await makeApp();
+      const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId, 'eval-capture-reload-repo');
+
+      const agent = (
+        await app.inject({
+          method: 'POST',
+          url: '/agents',
+          payload: { name: 'ReloadAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+        })
+      ).json();
+
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+      await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+      // Before any capture, every finding reports eval_case_id === null.
+      const before = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+      expect(before[0].findings.length).toBeGreaterThan(0);
+      for (const f of before[0].findings) expect(f.eval_case_id).toBeNull();
+
+      const accepted = before[0].findings.find(
+        (f: { title: string }) => f.title === 'Hardcoded Stripe secret key',
+      );
+      await app.inject({ method: 'POST', url: `/findings/${accepted.id}/accept` });
+      const capBody = (
+        await app.inject({ method: 'POST', url: `/findings/${accepted.id}/eval-case` })
+      ).json();
+      expect(capBody.created).toBe(true);
+
+      // Reload: the captured finding now carries its eval case id (this is what
+      // flips the client's button to "done"); the others stay null.
+      const after = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+      const acceptedAfter = after[0].findings.find((f: { id: string }) => f.id === accepted.id);
+      expect(acceptedAfter.eval_case_id).toBe(capBody.case.id);
+      for (const f of after[0].findings) {
+        if (f.id !== accepted.id) expect(f.eval_case_id).toBeNull();
+      }
+
+      await app.close();
+    },
+  );
 });

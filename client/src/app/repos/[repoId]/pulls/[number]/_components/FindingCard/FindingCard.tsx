@@ -26,6 +26,7 @@ import {
 } from "./constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/utils/githubUrls";
+import { useEvalCaseFromFinding } from "../../../../../../../lib/hooks/evals";
 import { s } from "./styles";
 
 export function FindingCard({
@@ -52,6 +53,11 @@ export function FindingCard({
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? targeted ?? false);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  // Scoped to this finding's own id (mirrors `useDeleteReview(prId)`): each
+  // card instance owns its own "turn into eval case" mutation state. AC-4
+  // ("decide first") is enforced server-side — this just calls through and
+  // surfaces whatever the server responds with, success or rejection.
+  const evalCase = useEvalCaseFromFinding(f.id);
 
   // Deep-link arrival: the card may mount long after the URL changed (the tab
   // switches, the accordion opens, then this renders), so drive it off the
@@ -71,6 +77,27 @@ export function FindingCard({
   const dismissed = !!f.dismissed_at;
   const muted = accepted || dismissed;
 
+  // "Captured into an eval case" is persisted on the finding (`eval_case_id`,
+  // derived server-side) so it survives a reload — OR it's the result of the
+  // capture we just fired this session, so the button flips immediately without
+  // waiting for the reviews query to refetch. `undecided` is a success too but
+  // creates nothing, so it must NOT count as captured. (The `evalCase.isSuccess`
+  // guard is what narrows `evalCase.data` off the mutation's discriminated union.)
+  const justCaptured =
+    evalCase.isSuccess &&
+    (evalCase.data.created === true ||
+      (evalCase.data.created === false && evalCase.data.reason === "exists"));
+  const captured = !!f.eval_case_id || justCaptured;
+  const undecidedMessage =
+    evalCase.isSuccess && evalCase.data.created === false && evalCase.data.reason === "undecided"
+      ? evalCase.data.message
+      : null;
+  const capturedMessage = !captured
+    ? null
+    : evalCase.isSuccess && evalCase.data.created === false && evalCase.data.reason === "exists"
+      ? t("finding.evalCaseExists")
+      : t("finding.evalCaseCreated");
+
   return (
     <div ref={rootRef} data-finding-id={f.id} style={s.card(!!focused, sevColor, muted, !!targeted)}>
       <div onClick={() => setExpanded((e) => !e)} style={s.header}>
@@ -83,6 +110,7 @@ export function FindingCard({
             <CategoryTag category={f.category as Category} />
             {accepted && <span style={s.acceptedTag}>{t("finding.accepted")}</span>}
             {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
+            {captured && <span style={s.evalCaseTag}>{t("finding.evalCaseTag")}</span>}
           </div>
           <div style={s.metaRow}>
             <MonoLink href={fileHref}>
@@ -129,7 +157,38 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="FlaskConical"
+              // Already captured → keep it visibly "done" and non-repeatable,
+              // the same way accept/dismiss reflect their persisted state.
+              disabled={pending || evalCase.isPending || captured}
+              loading={evalCase.isPending}
+              active={captured}
+              onClick={() => evalCase.mutate()}
+            >
+              {t("finding.turnIntoEvalCase")}
+            </Button>
           </div>
+
+          {evalCase.isError && (
+            <div role="alert" style={s.evalCaseError}>
+              {evalCase.error instanceof Error
+                ? evalCase.error.message
+                : t("finding.evalCaseError")}
+            </div>
+          )}
+          {undecidedMessage && (
+            <div role="status" style={s.evalCaseSuccess}>
+              {undecidedMessage}
+            </div>
+          )}
+          {capturedMessage && (
+            <div role="status" style={s.evalCaseSuccess}>
+              {capturedMessage}
+            </div>
+          )}
         </div>
       )}
     </div>

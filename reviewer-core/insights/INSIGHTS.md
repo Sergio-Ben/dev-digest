@@ -15,6 +15,10 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 ## Codebase Patterns
 
+2026-08-27 — `aggregateBatch` (T3, `src/eval/score.ts`) needs raw per-case counts, not just per-case ratios, because AC-21/22/23 define recall/precision/citation-accuracy as counts summed across ALL cases then divided (true micro-average), not an average of per-case fractions. `scoreCase` therefore returns a `CaseScore` richer than the plan's literal `{recall, precision, citation_accuracy, pass}` — it also carries `expectedCount`/`matchedExpectedCount`/`producedCount`/`matchedProducedCount`/`survivedCount`/`candidateCount` so `aggregateBatch` can sum before dividing. ref: reviewer-core/src/eval/score.ts:34-119
+
+2026-08-27 — `ExpectedFinding` is defined locally in `reviewer-core/src/eval/score.ts` (mirroring T1's `server/src/vendor/shared/contracts/eval-batch.ts`) because that contract exists in `contracts/eval-batch.ts` but is NOT re-exported from the shared barrel (`server/src/vendor/shared/index.ts`) yet. Swap to the real import once the barrel export lands — check `grep ExpectedFinding server/src/vendor/shared/index.ts` first. ref: reviewer-core/src/eval/score.ts:15-30
+
 2026-06-22 — New `PromptParts` fields should be added between `callers` and `diff` (not after `diff`) when the intent is to provide context before the diff. The rendering order in `assemblePrompt` follows the field declaration order in `PromptParts` conceptually: skills → memory → repoMap → specs → callers → [new context] → diff. ref: reviewer-core/src/prompt.ts:111
 
 2026-06-22 — `INJECTION_GUARD` already names "derived intent/scope" as untrusted content. Do NOT add new text about intent to the guard — it would duplicate the existing coverage and bloat the system prompt on every review. ref: reviewer-core/src/prompt.ts:16
@@ -24,6 +28,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 ## Recurring Errors & Fixes
 
 2026-06-22 — `npm run typecheck` in reviewer-core fails with "Invalid character" errors in `server/src/vendor/shared/contracts/platform.ts` if that file contains smart/curly apostrophes (U+2018/U+2019) inside a single-quoted TypeScript string. TypeScript treats the curly quote as a non-ASCII character, not a string delimiter match, causing a cascade of parse errors. Fix: replace the smart apostrophe with a regular ASCII apostrophe (') or switch the string delimiter to double-quotes. ref: server/src/vendor/shared/contracts/platform.ts:54
+
+2026-07-03 — Embedding model changes in `buildEmbedding()` (src/embeddings.ts) must trigger a server-side pgvector column dimension migration. When the embedding provider changes (e.g., OpenAI → Anthropic), the vector dimension N changes. Old vectors stored with dimension N do NOT automatically match new vectors with dimension M ≠ N. The database silently fails all vector distance computations on mismatched dimensions — queries return 0 rows instead of throwing an error. This is invisible until you test a similarity search and get 0 results. See server/insights/INSIGHTS.md:80 for the full migration pattern and recovery steps. ref: src/embeddings.ts:1
 
 ## Session Notes
 

@@ -168,7 +168,7 @@ export function SkillEditor({
         {activeTab === "config" && <ConfigTab skill={skill} />}
         {activeTab === "preview" && <PreviewTab skill={skill} />}
         {activeTab === "stats" && <StatsTab skillId={skill.id} />}
-        {activeTab === "versions" && <VersionsTab skill={skill} />}
+        {activeTab === "versions" && <VersionsTab skillId={skill.id} />}
         {activeTab === "context" && <ContextTab skill={skill} />}
       </div>
     </div>

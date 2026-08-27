@@ -17,6 +17,7 @@ export function toSkillDto(row: SkillRow): Skill {
     enabled: row.enabled,
     version: row.version,
     evidence_files: row.evidenceFiles ?? null,
+    attached_doc_paths: row.attachedDocPaths ?? [],
   };
 }
 
@@ -26,7 +27,9 @@ export function toSkillVersionDto(row: SkillVersionRow): SkillVersion {
     skill_id: row.skillId,
     version: row.version,
     body: row.body,
-    message: row.message ?? null,
+    // skill_versions no longer carries a per-version message; the contract
+    // keeps the field optional/nullable, so surface it as null.
+    message: null,
     created_at: row.createdAt.toISOString(),
   };
 }

@@ -8,6 +8,20 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+// FindingsPanel renders FindingCard, which calls `useEvalCaseFromFinding`
+// (T13) on every render — mock it so these tests don't need a real
+// QueryClientProvider ancestor.
+vi.mock("../../../../../../../lib/hooks/evals", () => ({
+  useEvalCaseFromFinding: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+  }),
+}));
+
 import { FindingsPanel } from "./FindingsPanel";
 
 afterEach(cleanup);
@@ -89,7 +103,9 @@ describe("FindingsPanel (smoke)", () => {
     expect(screen.getByText("No findings match")).toBeInTheDocument();
   });
 
-  it("filters by severity when a pill is clicked", () => {
+  it("narrows to a single severity when severityFilter is set", () => {
+    // The severity pills live in <SeverityFilterBar/>, which drives this prop on
+    // the parent; FindingsPanel itself filters purely off `severityFilter`.
     const findings: FindingRecord[] = [
       { ...FINDINGS[0]! },
       {
@@ -99,16 +115,21 @@ describe("FindingsPanel (smoke)", () => {
         title: "Warn finding",
       },
     ];
-    renderWithIntl(<FindingsPanel findings={findings} prId="pr1" />);
-    // Both visible initially
+    const wrap = (filter: "CRITICAL" | null) => (
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <FindingsPanel findings={findings} prId="pr1" severityFilter={filter} />
+      </NextIntlClientProvider>
+    );
+    const { rerender } = render(wrap(null));
+    // Both visible with no filter
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
     expect(screen.getByText("Warn finding")).toBeInTheDocument();
-    // Click CRITICAL pill
-    fireEvent.click(screen.getByRole("button", { name: /critical/i }));
+    // Filtering to CRITICAL hides the warning
+    rerender(wrap("CRITICAL"));
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
     expect(screen.queryByText("Warn finding")).not.toBeInTheDocument();
-    // Click again → reset
-    fireEvent.click(screen.getByRole("button", { name: /critical/i }));
+    // Clearing the filter restores both
+    rerender(wrap(null));
     expect(screen.getByText("Warn finding")).toBeInTheDocument();
   });
 });

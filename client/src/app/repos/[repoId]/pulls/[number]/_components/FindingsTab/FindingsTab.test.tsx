@@ -9,6 +9,18 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+// FindingCard (rendered inside FindingsTab) calls useEvalCaseFromFinding, which
+// uses a QueryClient; mock it so these tests need no QueryClientProvider.
+vi.mock("../../../../../../../lib/hooks/evals", () => ({
+  useEvalCaseFromFinding: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+  }),
+}));
+
 import { FindingsTab } from "./FindingsTab";
 
 afterEach(cleanup);

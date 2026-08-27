@@ -141,12 +141,14 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     const repoId = (await app.inject({ method: 'GET', url: '/repos' })).json()[0]!.id;
     const before = (await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` })).json();
     const pr = before[0]!;
-    type F = { severity: string };
-    const tally = (fs: F[] | null | undefined, sev: string) =>
-      (fs ?? []).filter((f) => f.severity === sev).length;
-    const baseCrit = tally(pr.findings, 'CRITICAL');
-    const baseWarn = tally(pr.findings, 'WARNING');
-    const baseSugg = tally(pr.findings, 'SUGGESTION');
+    // pr.findings is a per-severity rollup (SeverityCounts | null), NOT a list of
+    // records — the client derives chips from these counts and fetches finding
+    // bodies separately.
+    type Counts = { critical: number; warning: number; suggestion: number } | null | undefined;
+    const cnt = (c: Counts, key: 'critical' | 'warning' | 'suggestion') => c?.[key] ?? 0;
+    const baseCrit = cnt(pr.findings, 'critical');
+    const baseWarn = cnt(pr.findings, 'warning');
+    const baseSugg = cnt(pr.findings, 'suggestion');
 
     // Add a fresh review batch (newest → anchors the latest batch). We assert on
     // the DELTA so the test is robust to whatever the seed already attached.
@@ -181,12 +183,10 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     const after = (await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` })).json();
     const updated = after.find((p: { id: string }) => p.id === pr.id)!;
     // Delta over baseline == the batch we just inserted (2 CRITICAL, 1 WARNING,
-    // 3 SUGGESTION); the latest review now drives the score ring too. Findings
-    // are returned as records (chips derive counts client-side).
-    expect(tally(updated.findings, 'CRITICAL') - baseCrit).toBe(2);
-    expect(tally(updated.findings, 'WARNING') - baseWarn).toBe(1);
-    expect(tally(updated.findings, 'SUGGESTION') - baseSugg).toBe(3);
-    expect(updated.findings.find((f: { title: string }) => f.title === 'f1')).toBeTruthy();
+    // 3 SUGGESTION); the latest review now drives the score ring too.
+    expect(cnt(updated.findings, 'critical') - baseCrit).toBe(2);
+    expect(cnt(updated.findings, 'warning') - baseWarn).toBe(1);
+    expect(cnt(updated.findings, 'suggestion') - baseSugg).toBe(3);
     expect(updated.score).toBe(42);
     await app.close();
   });

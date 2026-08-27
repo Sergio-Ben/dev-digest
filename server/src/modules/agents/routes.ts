@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy, SetAttachedDocsBody } from '@devdigest/shared';
+import { Agent, CiFailOn, Provider, ReviewStrategy, SetAttachedDocsBody } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -9,6 +9,13 @@ import { AgentsService } from './service.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
 const ProviderParams = z.object({ id: Provider });
+
+/** `/agents/:id/versions/:version` — version is a positive integer in the path.
+ *  Coercion makes a non-numeric segment fail validation (→ 422, not 404). */
+const VersionParams = z.object({
+  id: z.string().uuid(),
+  version: z.coerce.number().int().positive(),
+});
 
 /**
  * A2 — agents module (owner A2).
@@ -21,6 +28,7 @@ const ProviderParams = z.object({ id: Provider });
  *   POST   /agents/:id/skills            → set/reorder linked skills OR link one
  *   GET    /agents/:id/models            → dynamic model list for the agent's provider
  *   GET    /providers/:id/models         → dynamic model list for a provider (editor)
+ *   POST   /agents/:id/promote           → Promote vN: reset live config to a past version's snapshot
  */
 
 const CreateAgentBody = z.object({
@@ -59,6 +67,11 @@ const SetSkillsBody = z
   .refine((b) => b.skill_ids !== undefined || b.skill_id !== undefined, {
     message: 'Provide skill_ids (set/reorder) or skill_id (link one)',
   });
+
+/** Promote vN (Q5) — reset the agent's live config to a past version's snapshot. */
+const PromoteAgentBody = z.object({
+  version: z.number().int().positive(),
+});
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -160,5 +173,28 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
   app.get('/providers/:id/models', { schema: { params: ProviderParams } }, async (req) => {
     await getContext(app.container, req);
     return service.listModels(req.params.id);
+  });
+
+  app.post(
+    '/agents/:id/promote',
+    { schema: { params: IdParams, body: PromoteAgentBody, response: { 200: Agent } } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      return service.promoteToVersion(workspaceId, req.params.id, req.body.version);
+    },
+  );
+
+  app.get('/agents/:id/versions', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const versions = await service.listVersions(workspaceId, req.params.id);
+    if (!versions) throw new NotFoundError('Agent not found');
+    return versions;
+  });
+
+  app.get('/agents/:id/versions/:version', { schema: { params: VersionParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const version = await service.getVersion(workspaceId, req.params.id, req.params.version);
+    if (!version) throw new NotFoundError('Agent version not found');
+    return version;
   });
 }

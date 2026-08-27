@@ -1,6 +1,8 @@
 {
   "dashboard": {
     "defaultTitle": "Eval Dashboard",
+    "subtitle": "Regression harness across all reviewer agents · pick an agent to see its runs",
+    "agentsSection": "Agents",
     "loading": "Loading eval metrics…",
     "casesSummary": "{count, plural, one {# eval case} other {# eval cases}} · gold set · {runs, plural, one {# run} other {# runs}}",
     "configure": "Configure eval cases →",
@@ -8,11 +10,21 @@
     "running": "Running…",
     "metricTrend": "Metric trend",
     "recentRuns": "Recent runs",
+    "recentRunsAllAgents": "Recent eval runs · all agents",
     "noRuns": "No runs yet. Create an eval case and run it.",
+    "noAgents": "No agents yet. Create an agent to start evaluating.",
+    "loadError": "Could not load the eval dashboard.",
+    "runAll": "Run all agents",
+    "runningAll": "Running all agents…",
+    "lastRunSummary": "v{version} · {ranAt} · {passed}/{total} passed",
+    "viewAgentDetail": "View {name} eval detail",
     "metrics": {
       "recall": "RECALL",
       "precision": "PRECISION",
-      "citationAccuracy": "CITATION ACCURACY"
+      "citationAccuracy": "CITATION ACCURACY",
+      "tracesPassed": "TRACES PASSED",
+      "prec": "PREC",
+      "cite": "CITE"
     },
     "legend": {
       "recall": "Recall",
@@ -20,6 +32,8 @@
       "citation": "Citation"
     },
     "table": {
+      "agent": "Agent",
+      "version": "Version",
       "ranAt": "Ran at",
       "recall": "Recall",
       "precision": "Precision",
@@ -42,9 +56,11 @@
     "inputLabel": "Input",
     "tabs": {
       "diff": "Diff",
+      "files": "Files",
       "prMeta": "PR meta"
     },
     "diffPlaceholder": "--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,6 +10,7 @@\n+  stripeKey: \"sk_live_...\"",
+    "filesPlaceholder": "[\n  '{' \"path\": \"src/config.ts\" '}'\n]",
     "titleLabel": "Title",
     "titlePlaceholder": "Add Stripe integration",
     "bodyLabel": "Body",
@@ -55,23 +71,34 @@
     "invalidJson": "invalid JSON",
     "lastRunPassed": "Last run passed",
     "lastRunFailed": "Last run failed",
-    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s"
+    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s",
+    "runOnSave": "Run on save",
+    "expectedGotSummary": "expected {expected, plural, one {# finding} other {# findings}}, got {got}",
+    "modalSubtitle": "{agent} · simulate a PR and assert the expected output",
+    "cancel": "Cancel",
+    "findingSkeleton": "+ Finding skeleton"
   },
   "evalsTab": {
     "metricsTitle": "Eval metrics",
     "metricsSubtitle": "Recall / Precision / Citation for this agent's eval cases",
+    "viewFullDashboard": "View full dashboard →",
     "casesHeading": "Eval cases",
-    "newCase": "New case",
+    "passingSummary": "{passed} / {total} passing",
+    "runAll": "Run all evals",
+    "newCase": "New eval case",
     "loadingCases": "Loading cases…",
     "emptyCases": "No eval cases yet. Create one to assert this agent's expected findings on a sample diff.",
     "neverRun": "never run",
     "passed": "passed",
     "failed": "failed",
+    "emptyTag": "empty []",
     "recallSuffix": " · recall {recall}%",
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "deleteConfirm": "Delete eval case \"{name}\"?",
+    "loadError": "Could not load eval cases."
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",
@@ -80,5 +107,56 @@
     "crumbEvals": "Evals",
     "crumbNewCase": "New case",
     "crumbEvalCase": "Eval case"
+  },
+  "compare": {
+    "title": "Compare batches",
+    "crumbEval": "Eval Dashboard",
+    "selectHint": "Select exactly two batches to compare (older → newer).",
+    "selectAgent": "Select an agent to compare its eval batches.",
+    "batchesHeading": "Batches",
+    "batchSummary": "{passed}/{total} traces passed",
+    "errorTitle": "Couldn't load eval batches",
+    "noBatches": "No batches yet. Run this agent's evals to create one.",
+    "modalTitle": "Compare runs · v{older} → v{newer}",
+    "modalSubtitle": "Old prompt vs new — metric deltas and prompt diff on the {count}-trace gold set",
+    "deltasHeading": "Metric deltas",
+    "deltas": {
+      "recall": "Recall",
+      "precision": "Precision",
+      "citation": "Citation accuracy",
+      "cost": "Cost"
+    },
+    "promptDiff": {
+      "title": "System prompt diff",
+      "unavailable": "Prompt diff unavailable — a snapshot is missing for one of the selected versions.",
+      "none": "No prompt changes between these versions.",
+      "removedLabel": "Removed",
+      "addedLabel": "Added"
+    },
+    "legend": {
+      "old": "v{version} (old)",
+      "new": "v{version} (new)"
+    },
+    "footer": {
+      "close": "Close"
+    },
+    "promote": {
+      "button": "Promote v{version}",
+      "confirmTitle": "Make v{version} the active version? This creates a new forward version equal to v{version} — it does not rewrite history.",
+      "disabledHint": "This version has no prompt snapshot to promote.",
+      "success": "v{version} is now the active version.",
+      "errorGeneric": "Couldn't promote this version."
+    }
+  },
+  "detail": {
+    "backToAgents": "All agents",
+    "subtitle": "Regression harness · {runs, plural, one {# run} other {# runs}} on the {traces}-trace gold set",
+    "switchAgent": "Switch agent",
+    "rangeFilter": "30 days",
+    "runEval": "Run eval",
+    "compare": "Compare",
+    "selectColumn": "Select run",
+    "selectRun": "Select run from {ranAt}",
+    "selectedCount": "{count} selected"
   }
 }

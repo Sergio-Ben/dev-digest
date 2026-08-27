@@ -78,6 +78,18 @@ export async function getReview(db: Db, reviewId: string): Promise<ReviewRow | u
   return row;
 }
 
+export async function getReviewScoped(
+  db: Db,
+  workspaceId: string,
+  reviewId: string,
+): Promise<ReviewRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(t.reviews)
+    .where(and(eq(t.reviews.workspaceId, workspaceId), eq(t.reviews.id, reviewId)));
+  return row;
+}
+
 /** Delete a whole review (one agent's run) + its findings (cascade), scoped
  *  to the workspace. Returns false if not found in the workspace. */
 export async function deleteReview(

@@ -20,6 +20,8 @@ export interface CreateSkillInput {
   body: string;
   source?: SkillSource;
   enabled?: boolean;
+  /** Repo-relative files that evidenced this skill (e.g. convention extraction). */
+  evidenceFiles?: string[];
 }
 
 export interface ImportSkillInput {
@@ -81,6 +83,7 @@ export class SkillsService {
       source: input.source ?? "manual",
       body: input.body,
       ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.evidenceFiles !== undefined ? { evidenceFiles: input.evidenceFiles } : {}),
     });
     return toSkillDto(row);
   }
@@ -134,7 +137,10 @@ export class SkillsService {
     workspaceId: string,
     id: string,
   ): Promise<SkillStats | undefined> {
-    return this.repo.stats(workspaceId, id);
+    // Workspace-scope the read first — repo.stats() keys on skill id alone.
+    const skill = await this.repo.getById(workspaceId, id);
+    if (!skill) return undefined;
+    return this.repo.stats(id);
   }
 
   async updateThreatLevel(id: string, threatLevel: ThreatLevel): Promise<void> {

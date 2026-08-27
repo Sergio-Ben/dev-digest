@@ -4,6 +4,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, FormField, TextInput, SelectInput } from "@devdigest/ui";
+import type { SkillType } from "@devdigest/shared";
 import { useCreateSkill, useImportSkill } from "@/lib/hooks/skills";
 import { useImportSkillFromUrl } from "@/lib/hooks/conventions";
 
@@ -115,7 +116,7 @@ export function CreateSkillModal({
   // Create form
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [type, setType] = React.useState("rubric");
+  const [type, setType] = React.useState<SkillType>("rubric");
   const [body, setBody] = React.useState("");
   const create = useCreateSkill();
 
@@ -279,7 +280,7 @@ export function CreateSkillModal({
             <FormField label="Type">
               <SelectInput
                 value={type}
-                onChange={setType}
+                onChange={(v) => setType(v as SkillType)}
                 options={TYPE_OPTIONS}
               />
             </FormField>

@@ -20,7 +20,7 @@ import {
   type Category,
 } from "@devdigest/ui";
 import type { Finding } from "@devdigest/shared";
-import { githubBlobUrl, githubPrFilesUrl } from "@/lib/github-urls";
+import { githubBlobUrl, githubPrFilesUrl } from "@/lib/utils/githubUrls";
 import { s } from "./styles";
 
 /** "11" for a single line, else "11-15". */

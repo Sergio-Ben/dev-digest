@@ -53,6 +53,19 @@ export type WorkflowCase =
       expectFileRead: string;
       tools?: string[];
       maxTurns?: number;
+    }
+  | {
+      // A single-session composite: run ONE workflowTask and assert several trace facets at once.
+      // Cheaper than separate dispatch/activation/contrast cases (one session, not N) at the cost
+      // of coarser diagnostics and no control run — use contrast when you must isolate CLAUDE.md's
+      // contribution. Every provided expectation must hold; omitted fields are not checked.
+      kind: "trace";
+      name: string;
+      prompt: string;
+      expectSubagents?: string[];
+      expectSkills?: string[];
+      expectFilesRead?: string[];
+      maxTurns?: number;
     };
 
 /** Did a skill engage? Either an explicit Skill tool-call, or reading its SKILL.md. */
@@ -106,11 +119,15 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
   for (const c of cases) {
     test(c.name, async () => {
       if (c.kind === "dispatch") {
-        const result = await workflowTask(c.prompt, { maxTurns: c.maxTurns });
+        // Stop the moment the subagent is launched — no need to wait out its nested session.
+        const expect1 = c.expectSubagent;
+        const result = await workflowTask(c.prompt, {
+          maxTurns: c.maxTurns,
+          stopWhen: (p) => p.subagents.includes(expect1),
+        });
         logTrace(c.name, result);
         try {
           expect(result.subagents, `subagents: ${result.subagents.join(", ")}`).toContain(c.expectSubagent);
-          expect(result.isError).toBe(false);
         } finally {
           record(c.name, { result });
         }
@@ -122,6 +139,44 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
             activated(result, c.skill),
             `skills: ${result.skillsInvoked.join(", ")} | reads: ${result.filesRead.join(", ")}`,
           ).toBe(c.shouldActivate);
+        } finally {
+          record(c.name, { result });
+        }
+      } else if (c.kind === "trace") {
+        // One session, many asserts — every provided expectation is checked against the same trace.
+        // Stop as soon as ALL expectations are satisfied (e.g. doc read + subagent launched), so a
+        // dispatch-bearing trace doesn't pay for the nested subagent's full run.
+        const subs = c.expectSubagents ?? [];
+        const skls = c.expectSkills ?? [];
+        const files = c.expectFilesRead ?? [];
+        const skillEngaged = (p: { skillsInvoked: string[]; filesRead: string[] }, skill: string) =>
+          p.skillsInvoked.some((s) => s === skill || s.endsWith(`:${skill}`)) ||
+          p.filesRead.some((f) => f.includes(`skills/${skill}/SKILL.md`));
+        const result = await workflowTask(c.prompt, {
+          maxTurns: c.maxTurns,
+          stopWhen: (p) =>
+            subs.every((s) => p.subagents.includes(s)) &&
+            skls.every((s) => skillEngaged(p, s)) &&
+            files.every((f) => p.filesRead.some((r) => r.includes(f))),
+        });
+        logTrace(c.name, result);
+        try {
+          for (const sub of c.expectSubagents ?? []) {
+            expect(result.subagents, `subagents: ${result.subagents.join(", ")}`).toContain(sub);
+          }
+          for (const skill of c.expectSkills ?? []) {
+            expect(
+              activated(result, skill),
+              `skill ${skill} not engaged | skills: ${result.skillsInvoked.join(", ")} | reads: ${result.filesRead.join(", ")}`,
+            ).toBe(true);
+          }
+          for (const file of c.expectFilesRead ?? []) {
+            expect(
+              result.filesRead.some((f) => f.includes(file)),
+              `${file} not read | reads: ${result.filesRead.join(", ")}`,
+            ).toBe(true);
+          }
+          expect(result.isError).toBe(false);
         } finally {
           record(c.name, { result });
         }

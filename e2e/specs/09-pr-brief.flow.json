@@ -10,6 +10,7 @@
     { "cmd": ["wait", "--text", "PR BRIEF"], "label": "PR Brief card section label renders (SectionLabel is CSS text-transform: uppercase, so the rendered/innerText string is all-caps)" },
     { "cmd": ["wait", "--text", "High risk"], "label": "seeded risk level word renders" },
     { "cmd": ["wait", "--text", "src/api/users.ts:45"], "label": "a real seeded changed-file path renders in the top review-focus row" },
+    { "cmd": ["scrollintoview", "button[aria-label=\"Open src/api/users.ts in Files changed\"]"], "label": "scroll the below-fold review-focus row into view so the click lands on settled coords (CI's production layout pushes it to ~y1200)" },
     { "cmd": ["find", "role", "button", "click", "--name", "Open src/api/users.ts in Files changed"], "label": "click the top review-focus row" },
     { "cmd": ["wait", "--url", "tab=diff"], "label": "deep link switched to the Files changed tab" },
     { "cmd": ["wait", "--url", "line="], "label": "deep link carries the focus row's line number" },

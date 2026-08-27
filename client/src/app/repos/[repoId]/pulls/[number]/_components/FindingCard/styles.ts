@@ -66,6 +66,11 @@ export const s = {
     fontWeight: 600,
     color: "var(--text-muted)",
   } satisfies CSSProperties,
+  evalCaseTag: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--accent)",
+  } satisfies CSSProperties,
   metaRow: {
     display: "flex",
     alignItems: "center",
@@ -103,6 +108,16 @@ export const s = {
     gap: 8,
     marginTop: 14,
     flexWrap: "wrap",
+  } satisfies CSSProperties,
+  evalCaseError: {
+    marginTop: 8,
+    fontSize: 12.5,
+    color: "var(--crit)",
+  } satisfies CSSProperties,
+  evalCaseSuccess: {
+    marginTop: 8,
+    fontSize: 12.5,
+    color: "var(--ok)",
   } satisfies CSSProperties,
   composer: {
     marginTop: 12,

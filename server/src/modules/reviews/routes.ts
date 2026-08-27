@@ -139,6 +139,13 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     return { ok: true };
   });
 
+  // ---- Rerun a completed review (spawn new run with same agent) ----
+  app.post('/reviews/:id/rerun', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    const run = await service.rerunReview(workspaceId, req.params.id, req.log);
+    return { pr_id: undefined, runs: [run], reviews: [] };
+  });
+
   // ---- Finding actions (accept / dismiss) ---------------------------------
   for (const action of FINDING_ACTIONS) {
     app.post(`/findings/:id/${action}`, { schema: { params: IdParams } }, async (req) => {

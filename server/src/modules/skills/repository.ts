@@ -8,6 +8,7 @@ import * as t from '../../db/schema.js';
  */
 
 import type { SkillRow, SkillVersionRow } from '../../db/rows.js';
+import type { ThreatLevel } from './scanner.js';
 export type { SkillRow, SkillVersionRow };
 
 export interface InsertSkill {
@@ -29,8 +30,6 @@ export interface UpdateSkill {
   body?: string;
   enabled?: boolean;
   evidenceFiles?: string[];
-  /** Optional version message stored in skill_versions when body changes. */
-  message?: string | null;
 }
 
 export interface SkillStats {
@@ -84,7 +83,6 @@ export class SkillsRepository {
       skillId: row!.id,
       version: 1,
       body: row!.body,
-      message: null,
     });
     return row!;
   }
@@ -123,10 +121,17 @@ export class SkillsRepository {
         skillId: row.id,
         version: nextVersion,
         body: row.body,
-        message: patch.message ?? null,
       });
     }
     return row;
+  }
+
+  /** Persist a skill's threat level (set by the post-update security scan). */
+  async updateThreatLevel(id: string, threatLevel: ThreatLevel): Promise<void> {
+    await this.db
+      .update(t.skills)
+      .set({ threatLevel })
+      .where(eq(t.skills.id, id));
   }
 
   /** All body versions for a skill, newest first. */
@@ -157,7 +162,6 @@ export class SkillsRepository {
 
     return this.update(workspaceId, skillId, {
       body: versionRow.body,
-      message: `Restored from version ${version}`,
     });
   }
 

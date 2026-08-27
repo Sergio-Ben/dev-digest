@@ -2,7 +2,10 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { useCreateSkillFromConventions } from "@/lib/hooks/conventions";
+import {
+  useConventionSkillDraft,
+  useCreateSkillFromConventions,
+} from "@/lib/hooks/conventions";
 
 interface Props {
   repoId: string;
@@ -20,14 +23,20 @@ export function CreateSkillFromConventionsModal({
   onCreated,
 }: Props) {
   const router = useRouter();
-  const createSkill = useCreateSkillFromConventions();
+  const { data: draft } = useConventionSkillDraft(repoId, true);
+  const createSkill = useCreateSkillFromConventions(repoId);
   const [name, setName] = React.useState(`${repoName}-conventions`);
   const [description, setDescription] = React.useState(
     `${acceptedCount} house conventions extracted from ${repoName}`,
   );
 
   const handleCreate = async () => {
-    const skill = await createSkill.mutateAsync({ repoId, name, description });
+    if (!draft) return; // wait for the generated skill body before submitting
+    const skill = await createSkill.mutateAsync({
+      name,
+      description,
+      body: draft.body,
+    });
     onCreated();
     router.push(`/skills/${skill.id}`);
   };
@@ -164,7 +173,7 @@ export function CreateSkillFromConventionsModal({
             </button>
             <button
               onClick={handleCreate}
-              disabled={!name.trim() || createSkill.isPending}
+              disabled={!name.trim() || !draft || createSkill.isPending}
               style={{
                 padding: "8px 16px",
                 borderRadius: 7,

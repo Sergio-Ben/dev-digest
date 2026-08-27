@@ -6,7 +6,7 @@
  */
 
 import { EVAL_JUDGE_MODEL } from "../config.js";
-import { runClaude } from "../runtime/run-claude.js";
+import { runContent } from "../runtime/dispatch.js";
 
 const JUDGE_RUBRIC =
   "You are a strict, blind evaluator. Given an OUTPUT and a list of PRACTICES, judge each " +
@@ -36,7 +36,7 @@ function parseVerdict(text: string): Verdict["results"] {
 export async function llmJudge(output: string, practices: string[], model = EVAL_JUDGE_MODEL): Promise<Verdict> {
   const listed = practices.map((p, i) => `${i + 1}. ${p}`).join("\n");
   const prompt = `${JUDGE_RUBRIC}\n\n## PRACTICES\n${listed}\n\n## OUTPUT\n${output}\n\nReturn the JSON now.`;
-  const res = await runClaude(prompt, { allowedTools: [], maxTurns: 1, model });
+  const res = await runContent(prompt, { allowedTools: [], maxTurns: 1, model });
   const results = parseVerdict(res.text);
   const total = results.length || 1;
   const passed = results.filter((r) => r.passed).length;

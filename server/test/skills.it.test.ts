@@ -2,7 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/platform/config.js";
 import { seed } from "../src/db/seed.js";
-import { MockGitClient, MockGitHubClient } from "../src/adapters/mocks.js";
+import {
+  MockAuthProvider,
+  MockGitClient,
+  MockGitHubClient,
+} from "../src/adapters/mocks.js";
 import { startPg, dockerAvailable, type PgFixture } from "./helpers/pg.js";
 
 const hasDocker = await dockerAvailable();
@@ -320,7 +324,12 @@ describe("POST /skills/import-url SSRF protection (no DB)", () => {
   } as NodeJS.ProcessEnv);
 
   it("rejects localhost URLs → non-2xx error", async () => {
-    const app = await buildApp({ config });
+    // Inject a mock auth provider so getContext() does not hit the DB — these
+    // SSRF checks reject the URL before any DB access and must pass with no DB.
+    const app = await buildApp({
+      config,
+      overrides: { auth: new MockAuthProvider() },
+    });
     const res = await app.inject({
       method: "POST",
       url: "/skills/import-url",
@@ -332,7 +341,12 @@ describe("POST /skills/import-url SSRF protection (no DB)", () => {
   });
 
   it("rejects 127.x.x.x IPs → non-2xx error", async () => {
-    const app = await buildApp({ config });
+    // Inject a mock auth provider so getContext() does not hit the DB — these
+    // SSRF checks reject the URL before any DB access and must pass with no DB.
+    const app = await buildApp({
+      config,
+      overrides: { auth: new MockAuthProvider() },
+    });
     const res = await app.inject({
       method: "POST",
       url: "/skills/import-url",
@@ -343,7 +357,12 @@ describe("POST /skills/import-url SSRF protection (no DB)", () => {
   });
 
   it("rejects 10.x private IPs → non-2xx error", async () => {
-    const app = await buildApp({ config });
+    // Inject a mock auth provider so getContext() does not hit the DB — these
+    // SSRF checks reject the URL before any DB access and must pass with no DB.
+    const app = await buildApp({
+      config,
+      overrides: { auth: new MockAuthProvider() },
+    });
     const res = await app.inject({
       method: "POST",
       url: "/skills/import-url",
@@ -354,7 +373,12 @@ describe("POST /skills/import-url SSRF protection (no DB)", () => {
   });
 
   it("rejects plain HTTP external URLs → non-2xx error", async () => {
-    const app = await buildApp({ config });
+    // Inject a mock auth provider so getContext() does not hit the DB — these
+    // SSRF checks reject the URL before any DB access and must pass with no DB.
+    const app = await buildApp({
+      config,
+      overrides: { auth: new MockAuthProvider() },
+    });
     const res = await app.inject({
       method: "POST",
       url: "/skills/import-url",
@@ -366,7 +390,12 @@ describe("POST /skills/import-url SSRF protection (no DB)", () => {
   });
 
   it("rejects missing name → 422", async () => {
-    const app = await buildApp({ config });
+    // Inject a mock auth provider so getContext() does not hit the DB — these
+    // SSRF checks reject the URL before any DB access and must pass with no DB.
+    const app = await buildApp({
+      config,
+      overrides: { auth: new MockAuthProvider() },
+    });
     const res = await app.inject({
       method: "POST",
       url: "/skills/import-url",

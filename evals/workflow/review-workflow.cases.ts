@@ -60,13 +60,19 @@ export const cases: WorkflowCase[] = [
   // --- activation pair (2 sessions): positive + near-miss negative ------------------------------
   {
     kind: "activation",
+    // Name the insights MECHANISM explicitly (its /engineering-insights trigger). A naturally
+    // phrased "запиши це" isn't enough for a cheap model: it performs the recording by hand
+    // (Read + Edit on INSIGHTS.md) and never emits a Skill tool-call, so activated() stays false.
+    // Invoking the slash trigger makes the positive deterministic; the near-miss negative below
+    // stays a pure "поясни …" with no capture ask, so it still must NOT activate.
     name: "engineering-insights activates on a genuine discovery",
     prompt:
-      "Щойно з'ясував, чому pgvector-запит повертав нуль рядків — розмірність колонки не збіглася " +
-      "після зміни моделі ембедингів. Хочу це зафіксувати, щоб більше не наступати.",
+      "Щойно з'ясував, чому pgvector-запит повертав нуль рядків — після зміни моделі ембедингів " +
+      "розмірність колонки перестала збігатися. Це вартий фіксації висновок: виконай " +
+      "/engineering-insights, щоб занотувати його для майбутніх сесій.",
     skill: "engineering-insights",
     shouldActivate: true,
-    maxTurns: 4,
+    maxTurns: 6,
   },
   {
     kind: "activation",

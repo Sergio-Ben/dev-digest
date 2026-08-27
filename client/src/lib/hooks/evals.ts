@@ -47,15 +47,31 @@ export function useCreateEvalCase() {
 }
 
 /**
+ * Server response for a capture attempt. Idempotent: a repeat capture of an
+ * already-captured finding comes back `{ created: false, reason: "exists" }`
+ * with the existing case (no duplicate), and an undecided finding comes back
+ * `{ created: false, reason: "undecided" }` — neither is an HTTP error, so the
+ * caller must branch on this discriminator rather than on success/failure.
+ */
+export type CaptureCaseResult =
+  | { created: true; case: EvalCase }
+  | { created: false; reason: "exists"; case: EvalCase }
+  | { created: false; reason: "undecided"; message: string };
+
+/**
  * Capture: "Turn into eval case" from a decided finding (Capability A). The
  * finding id is fixed at hook-creation time, mirroring `useDeleteReview(prId)`.
  */
 export function useEvalCaseFromFinding(findingId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<EvalCase>(`/findings/${findingId}/eval-case`),
+    mutationFn: () => api.post<CaptureCaseResult>(`/findings/${findingId}/eval-case`),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["eval-cases", data.owner_id] });
+      // Both `created` and the idempotent `exists` outcome carry the case, so
+      // refresh that agent's case list; `undecided` created nothing.
+      if ("case" in data) {
+        qc.invalidateQueries({ queryKey: ["eval-cases", data.case.owner_id] });
+      }
     },
   });
 }

@@ -46,6 +46,7 @@
     "cancel": "Cancel",
     "turnIntoEvalCase": "Turn into eval case",
     "evalCaseCreated": "Eval case created",
+    "evalCaseExists": "This finding is already an eval case",
     "evalCaseError": "Couldn't create the eval case."
   },
   "trifecta": {

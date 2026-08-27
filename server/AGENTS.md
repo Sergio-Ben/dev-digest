@@ -12,5 +12,6 @@ Search `server/docs/`, `server/specs/`, `server/INSIGHTS.md` for the topic befor
 
 ## Use when
 - Overview, commands, route/API map → read `server/README.md`
+- API conventions / endpoint request-response contracts (adding or changing an endpoint) → read `server/docs/api-contracts.md`
 - Indexer internals → read `server/src/modules/repo-intel/README.md`
 - Deep-dives → read `server/docs/` · feature specs/acceptance → read `server/specs/` · gotchas/findings → read `server/INSIGHTS.md`

@@ -60,7 +60,7 @@
       "prMeta": "PR meta"
     },
     "diffPlaceholder": "--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,6 +10,7 @@\n+  stripeKey: \"sk_live_...\"",
-    "filesPlaceholder": "[\n  { \"path\": \"src/config.ts\" }\n]",
+    "filesPlaceholder": "[\n  '{' \"path\": \"src/config.ts\" '}'\n]",
     "titleLabel": "Title",
     "titlePlaceholder": "Add Stripe integration",
     "bodyLabel": "Body",

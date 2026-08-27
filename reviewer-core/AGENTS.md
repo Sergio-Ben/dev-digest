@@ -13,4 +13,5 @@ Search `reviewer-core/docs/`, `reviewer-core/specs/`, `reviewer-core/INSIGHTS.md
 
 ## Use when
 - Pipeline overview → read `reviewer-core/README.md`
+- Hit unexpected / surprising behavior (a gotcha) → read `reviewer-core/insights/gotchas.md`
 - Deep-dives → read `reviewer-core/docs/` · specs → read `reviewer-core/specs/` · findings → read `reviewer-core/INSIGHTS.md`

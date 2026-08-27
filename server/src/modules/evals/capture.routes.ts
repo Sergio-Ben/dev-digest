@@ -13,18 +13,29 @@ import { CaptureService } from './capture.service.js';
  *   dismissed) into a frozen `eval_cases` row (AC-1..6, AC-40). An undecided
  *   finding is NOT an error — it's answered with a 200 "decide first" prompt
  *   so the UI can nudge the reviewer (AC-4); a successful capture returns 201
- *   with the created `EvalCase`.
+ *   with the created `EvalCase`. A repeat capture of an already-captured finding
+ *   is idempotent — it returns 200 with the EXISTING case (`reason: 'exists'`)
+ *   rather than creating a duplicate, so a page reload cannot double-add.
  *
  * Onion layer: presentation only — thin handler: getContext → one service
  * call → status + body. All derivation (must_find/must_not_flag, frozen
- * diff, workspace/agent verification) lives in `CaptureService`.
+ * diff, workspace/agent verification, idempotency) lives in `CaptureService`.
  */
 const CaptureCaseCreated = z.object({ created: z.literal(true), case: EvalCase });
+const CaptureCaseExists = z.object({
+  created: z.literal(false),
+  reason: z.literal('exists'),
+  case: EvalCase,
+});
 const CaptureCaseRejected = z.object({
   created: z.literal(false),
   reason: z.literal('undecided'),
   message: z.string(),
 });
+const CaptureCaseNotCreated = z.discriminatedUnion('reason', [
+  CaptureCaseExists,
+  CaptureCaseRejected,
+]);
 
 const captureRoutes: FastifyPluginAsync = async (appBase) => {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -35,7 +46,7 @@ const captureRoutes: FastifyPluginAsync = async (appBase) => {
     {
       schema: {
         params: IdParams,
-        response: { 200: CaptureCaseRejected, 201: CaptureCaseCreated },
+        response: { 200: CaptureCaseNotCreated, 201: CaptureCaseCreated },
       },
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
     },

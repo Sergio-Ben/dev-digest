@@ -196,6 +196,23 @@ d('POST /findings/:id/eval-case (T5 — capture)', () => {
         title: 'Hardcoded Stripe secret key',
       });
 
+      // ---- Idempotency: re-capturing the SAME finding returns the existing
+      //      case, not a duplicate (guards the "reload loses state → double-add"
+      //      bug). input_meta carries the source_finding_id used to dedupe. -----
+      expect(acceptedCase.input_meta).toMatchObject({ source_finding_id: acceptedFinding.id });
+      const dupRes = await app.inject({
+        method: 'POST',
+        url: `/findings/${acceptedFinding.id}/eval-case`,
+      });
+      expect(dupRes.statusCode).toBe(200);
+      const dupBody = dupRes.json();
+      expect(dupBody.created).toBe(false);
+      expect(dupBody.reason).toBe('exists');
+      expect(dupBody.case.id).toBe(acceptedCase.id);
+      // Still exactly one case for this agent — no duplicate row was inserted.
+      const casesAfterDup = await evalsRepo.listCasesForOwner(workspaceId, 'agent', agent.id);
+      expect(casesAfterDup).toHaveLength(1);
+
       // ---- AC-3: dismissed finding → must_not_flag case ---------------------
       const dismissedRes = await app.inject({
         method: 'POST',

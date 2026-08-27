@@ -156,7 +156,11 @@ export function FindingCard({
           )}
           {evalCase.isSuccess && (
             <div role="status" style={s.evalCaseSuccess}>
-              {t("finding.evalCaseCreated")}
+              {!evalCase.data.created && evalCase.data.reason === "undecided"
+                ? evalCase.data.message
+                : !evalCase.data.created && evalCase.data.reason === "exists"
+                  ? t("finding.evalCaseExists")
+                  : t("finding.evalCaseCreated")}
             </div>
           )}
         </div>

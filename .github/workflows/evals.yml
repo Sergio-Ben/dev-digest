@@ -30,7 +30,7 @@ on:
         default: 'deepseek/deepseek-v4-flash'
       tool_model:
         description: 'OpenRouter slug for the agents + workflow (tool) tiers'
-        default: 'anthropic/claude-haiku-4.5'
+        default: 'deepseek/deepseek-v4-flash'
 
 permissions:
   contents: read

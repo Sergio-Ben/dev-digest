@@ -27,7 +27,7 @@ on:
     inputs:
       skills_model:
         description: 'OpenRouter slug for the skills (content) tier'
-        default: 'deepseek/deepseek-chat'
+        default: 'deepseek/deepseek-v4-flash'
       tool_model:
         description: 'OpenRouter slug for the agents + workflow (tool) tiers'
         default: 'anthropic/claude-haiku-4.5'
@@ -82,8 +82,8 @@ jobs:
     env:
       EVAL_BACKEND: openrouter
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      EVAL_MODEL: ${{ inputs.skills_model || 'deepseek/deepseek-chat' }}
-      EVAL_JUDGE_MODEL: ${{ inputs.skills_model || 'deepseek/deepseek-chat' }}
+      EVAL_MODEL: ${{ inputs.skills_model || 'deepseek/deepseek-v4-flash' }}
+      EVAL_JUDGE_MODEL: ${{ inputs.skills_model || 'deepseek/deepseek-v4-flash' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
